@@ -1,4 +1,4 @@
-const CACHE = 'one-fitness-v4'
+const CACHE = 'one-fitness-v5'
 const APP_SHELL = ['/', '/manifest.webmanifest', '/icon.svg', '/logo.svg', '/coach.svg', '/assets/coach-sprite.webp', '/assets/exercise-sprite.webp']
 
 self.addEventListener('install', (event) => {
@@ -32,5 +32,8 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  event.waitUntil(clients.openWindow(event.notification.data?.url || '/'))
+  const raw = event.notification.data?.url || '/'
+  const url = new URL(raw, self.location.origin)
+  if (url.searchParams.get('tab')) url.searchParams.set('from', 'push')
+  event.waitUntil(clients.openWindow(url.toString()))
 })
