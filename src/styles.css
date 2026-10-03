@@ -712,3 +712,71 @@ input,select,textarea{font-size:16px!important} /* empêche le zoom automatique 
   .nutrition-coach-card.hydration-coach,.nutrition-coach-card.food-coach{grid-template-columns:1fr}
   .nutrition-coach-card img{margin:auto}
 }
+
+
+/* ===== HD sprite-backed artwork (no browser upscaling of tiny assets) ===== */
+.visual-sprite{
+  display:block;
+  width:100%;
+  height:100%;
+  background-repeat:no-repeat;
+  background-color:transparent;
+}
+.visual-sprite--coach{
+  background-image:url('/assets/coach-sprite.webp');
+  background-size:500% 200%;
+}
+.visual-sprite--exercise{
+  background-image:url('/assets/exercise-sprite.webp');
+  background-size:300% 300%;
+}
+/* Coach sheet: 5 columns x 2 rows */
+.visual-sprite--ready{background-position:0% 0%}
+.visual-sprite--welcome{background-position:25% 0%}
+.visual-sprite--motivate{background-position:50% 0%}
+.visual-sprite--reminder{background-position:75% 0%}
+.visual-sprite--complete{background-position:100% 0%}
+.visual-sprite--high-knees{background-position:0% 100%}
+.visual-sprite--jump-rope{background-position:25% 100%}
+.visual-sprite--hydration{background-position:50% 100%}
+.visual-sprite--nutrition{background-position:75% 100%}
+.visual-sprite--recovery{background-position:100% 100%}
+/* Exercise sheet: 3 columns x 3 rows */
+.visual-sprite--jumping-jacks{background-position:0% 0%}
+.visual-sprite--mountain-climbers{background-position:100% 0%}
+.visual-sprite--pushups{background-position:0% 50%}
+.visual-sprite--squats{background-position:50% 50%}
+.visual-sprite--reverse-crunch{background-position:100% 50%}
+.visual-sprite--bicycle-crunch{background-position:0% 100%}
+.visual-sprite--hand-gripper{background-position:50% 100%}
+.visual-sprite--neck-isometric{background-position:100% 100%}
+/* jump-rope exists in both sheets; exercise contexts explicitly use exercise sprite */
+.exercise-visual .visual-sprite--jump-rope{background-position:50% 0%}
+
+.profile-stack>.visual-sprite{
+  width:48px;
+  height:48px;
+  border-radius:50%;
+  border:2px solid #d9e7ff;
+  background-color:#fff;
+}
+.coach-cutout .visual-sprite,
+.selected-workout-art .visual-sprite,
+.coach-presence-art .visual-sprite,
+.nutrition-coach-card .visual-sprite,
+.recovery-coach .visual-sprite,
+.prepare-coach .visual-sprite,
+.session-coach-cue .visual-sprite,
+.coach-popup-art .visual-sprite,
+.completion-coach .visual-sprite,
+.profile-card>.visual-sprite{
+  width:100%;
+  height:100%;
+}
+.exercise-visual .visual-sprite{
+  aspect-ratio:4/5;
+  min-height:260px;
+  background-color:#fff;
+  border-radius:inherit;
+}
+.exercise-visual.compact .visual-sprite{min-height:220px}
