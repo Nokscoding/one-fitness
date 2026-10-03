@@ -807,3 +807,439 @@ input,select,textarea{font-size:16px!important} /* empêche le zoom automatique 
   background-size:cover;
   background-position:center 15%;
 }
+
+
+/* ===== MOBILE-FIRST PRODUCTION SHELL v5 ===== */
+html, body, #root {
+  width:100%;
+  height:100%;
+  min-height:100%;
+  overflow:hidden;
+  overscroll-behavior:none;
+  background:#fff;
+}
+body {
+  position:fixed;
+  inset:0;
+  touch-action:manipulation;
+}
+button, a, summary, input, select, textarea {
+  touch-action:manipulation;
+}
+.app-shell {
+  width:100vw !important;
+  height:100dvh !important;
+  min-height:100dvh !important;
+  padding:0 !important;
+  margin:0 !important;
+  display:block !important;
+  background:#fff !important;
+  overflow:hidden !important;
+}
+.mobile-app {
+  position:relative !important;
+  width:100vw !important;
+  max-width:none !important;
+  height:100dvh !important;
+  min-height:100dvh !important;
+  margin:0 !important;
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  background:#fff !important;
+  overflow:hidden !important;
+}
+.content-scroll {
+  position:absolute !important;
+  inset:0 !important;
+  width:100% !important;
+  height:100% !important;
+  min-height:0 !important;
+  overflow-x:hidden !important;
+  overflow-y:auto !important;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior-y:contain;
+  touch-action:pan-y;
+  scroll-behavior:auto;
+  scrollbar-width:none;
+  padding:
+    calc(env(safe-area-inset-top) + 14px)
+    16px
+    calc(94px + env(safe-area-inset-bottom))
+    16px !important;
+}
+.content-scroll::-webkit-scrollbar{display:none}
+.topbar,.screen-header{
+  margin-top:0 !important;
+}
+.topbar h1,.screen-header h1{
+  font-size:clamp(26px,7.4vw,31px) !important;
+}
+.section-block{
+  border-radius:20px !important;
+}
+.bottom-nav {
+  position:fixed !important;
+  z-index:80 !important;
+  left:12px !important;
+  right:12px !important;
+  bottom:calc(10px + env(safe-area-inset-bottom)) !important;
+  width:auto !important;
+  height:68px !important;
+  padding:6px !important;
+  border-radius:22px !important;
+  transform:none !important;
+}
+.bottom-nav button{
+  min-width:0;
+  min-height:54px;
+}
+.bottom-nav button span{
+  font-size:8px !important;
+  white-space:nowrap;
+}
+
+/* Resume card: never force-open an interrupted workout */
+.resume-workout-card{
+  width:100%;
+  margin-top:12px;
+  padding:12px;
+  display:grid;
+  grid-template-columns:40px 1fr auto;
+  gap:10px;
+  align-items:center;
+  text-align:left;
+  border:1px solid #d8e6fb;
+  border-radius:17px;
+  background:linear-gradient(135deg,#f3f8ff,#fff);
+  color:var(--ink);
+  box-shadow:0 7px 18px rgba(18,64,122,.05);
+}
+.resume-workout-icon{
+  width:40px;
+  height:40px;
+  display:grid;
+  place-items:center;
+  border-radius:13px;
+  background:var(--blue);
+  color:#fff;
+}
+.resume-workout-card p{margin:0 0 2px}
+.resume-workout-card b{display:block;font-size:11px}
+.resume-workout-card div>span{display:block;margin-top:2px;color:#7a8798;font-size:8px}
+
+/* Workout becomes a true mobile full-screen experience */
+.session-screen{
+  position:fixed !important;
+  z-index:220 !important;
+  inset:0 !important;
+  width:100vw !important;
+  height:100dvh !important;
+  min-height:100dvh !important;
+  overflow:hidden !important;
+  display:flex !important;
+  flex-direction:column !important;
+  padding:
+    calc(env(safe-area-inset-top) + 10px)
+    14px
+    calc(env(safe-area-inset-bottom) + 10px)
+    14px !important;
+  background:#fff !important;
+  touch-action:pan-y;
+}
+.session-header,
+.session-progress{
+  flex:0 0 auto;
+}
+.session-main{
+  flex:1 1 auto !important;
+  min-height:0 !important;
+  overflow-x:hidden !important;
+  overflow-y:auto !important;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior-y:contain;
+  touch-action:pan-y;
+  padding:16px 2px 22px !important;
+  scrollbar-width:none;
+}
+.session-main::-webkit-scrollbar{display:none}
+.session-main h1{
+  font-size:clamp(25px,7vw,30px) !important;
+  margin-top:5px !important;
+}
+.session-exercise-icon{
+  width:64px !important;
+  height:64px !important;
+  border-radius:20px !important;
+  margin:14px auto 9px !important;
+}
+.session-target{
+  font-size:11px !important;
+}
+.work-timer{
+  margin-top:15px !important;
+}
+.work-timer>strong{
+  font-size:clamp(48px,15vw,64px) !important;
+}
+.timer-actions{
+  position:relative;
+  z-index:2;
+  margin-top:10px !important;
+}
+.timer-actions button,
+.session-complete{
+  min-height:50px !important;
+}
+.series-recovery-actions{
+  margin-top:9px !important;
+}
+.series-recovery-actions button{
+  min-height:42px !important;
+}
+
+/* Exercise art is optional/expandable, not a giant forced block */
+.session-guide-details{
+  margin-top:16px;
+  border:1px solid #e3eaf4;
+  border-radius:16px;
+  background:#f9fbfe;
+  overflow:hidden;
+}
+.session-guide-details summary{
+  list-style:none;
+  min-height:48px;
+  padding:0 13px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  color:#23415f;
+  font-size:10px;
+  font-weight:800;
+  cursor:pointer;
+}
+.session-guide-details summary::-webkit-details-marker{display:none}
+.session-guide-details summary span{
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+.session-guide-details[open] summary>svg{
+  transform:rotate(90deg);
+}
+.session-guide-details .exercise-visual{
+  width:min(76vw,280px) !important;
+  margin:0 auto 13px !important;
+  aspect-ratio:4/5;
+}
+.session-guide-details .exercise-visual .visual-sprite{
+  min-height:0 !important;
+  width:100% !important;
+  height:100% !important;
+  aspect-ratio:4/5 !important;
+}
+.session-howto{
+  margin-top:16px !important;
+  padding-top:14px !important;
+}
+
+/* Prep screen stays within one phone viewport */
+.prepare-screen{
+  overflow:hidden !important;
+}
+.prepare-main{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  padding:14px 4px 8px !important;
+}
+.prepare-coach{
+  width:120px !important;
+  height:128px !important;
+  margin-bottom:5px !important;
+}
+.countdown-orb{
+  width:min(36vw,136px) !important;
+  height:min(36vw,136px) !important;
+  font-size:58px !important;
+}
+.prepare-main h1{
+  font-size:24px !important;
+  margin:6px auto 10px !important;
+}
+
+/* Coach popups must behave like native compact bottom sheets */
+.coach-popup-backdrop{
+  position:fixed !important;
+  z-index:300 !important;
+  inset:0 !important;
+  width:100vw !important;
+  height:100dvh !important;
+  padding:0 10px calc(10px + env(safe-area-inset-bottom)) !important;
+  display:flex !important;
+  align-items:flex-end !important;
+  overflow:hidden !important;
+  touch-action:none;
+}
+.coach-popup-card{
+  width:100% !important;
+  max-width:none !important;
+  max-height:min(68dvh,560px) !important;
+  border-radius:24px 24px 20px 20px !important;
+  display:flex !important;
+  flex-direction:column !important;
+  overflow:hidden !important;
+}
+.coach-popup-art{
+  flex:0 0 min(24dvh,170px) !important;
+  height:min(24dvh,170px) !important;
+  padding:8px 18px 0 !important;
+}
+.coach-popup-art .visual-sprite--coach{
+  width:min(50vw,180px) !important;
+  margin:auto !important;
+}
+.coach-popup-copy{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  padding:14px 16px 16px !important;
+}
+.coach-popup-copy h2{
+  font-size:21px !important;
+}
+.coach-popup-copy>p:last-of-type{
+  font-size:10px !important;
+}
+.coach-popup-copy .primary-button{
+  min-height:46px !important;
+}
+
+/* Completion screen is fixed and internally scrollable */
+.completion-screen{
+  position:fixed !important;
+  z-index:320 !important;
+  inset:0 !important;
+  width:100vw !important;
+  height:100dvh !important;
+  overflow-y:auto !important;
+  -webkit-overflow-scrolling:touch;
+  touch-action:pan-y;
+  padding:
+    calc(env(safe-area-inset-top) + 12px)
+    16px
+    calc(env(safe-area-inset-bottom) + 18px)
+    16px !important;
+}
+.completion-coach{
+  height:min(33dvh,240px) !important;
+}
+.completion-main h1{
+  font-size:28px !important;
+}
+
+/* Cards cannot overflow narrow iPhones */
+.hero-card{
+  min-height:214px !important;
+  padding:20px !important;
+}
+.hero-content{
+  width:64% !important;
+}
+.hero-content h2{
+  font-size:clamp(24px,7vw,28px) !important;
+}
+.coach-cutout{
+  width:40% !important;
+  right:-4px !important;
+}
+.selected-workout-card{
+  grid-template-columns:minmax(0,1fr) 92px !important;
+  min-height:165px !important;
+  padding:15px !important;
+}
+.selected-workout-art{
+  width:120px !important;
+  height:160px !important;
+}
+.nutrition-coach-card{
+  min-width:0;
+}
+.daily-card,
+.day-card,
+.reminder-row,
+.session-row{
+  min-width:0;
+}
+.day-body,
+.daily-card>div,
+.reminder-row>div,
+.session-row>div{
+  min-width:0;
+}
+
+/* Mobile authentication is full screen too */
+.auth-screen,.onboarding,.loading-screen{
+  width:100vw !important;
+  height:100dvh !important;
+  min-height:100dvh !important;
+  padding:
+    calc(env(safe-area-inset-top) + 14px)
+    16px
+    calc(env(safe-area-inset-bottom) + 14px)
+    16px !important;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+}
+.auth-card,.onboarding-card{
+  width:100% !important;
+  max-width:430px !important;
+  margin:auto !important;
+}
+input,select,textarea{
+  font-size:16px !important;
+}
+
+/* Ignore the old desktop phone-frame rules entirely */
+@media(min-width:720px){
+  .app-shell{
+    padding:0 !important;
+    align-items:initial !important;
+  }
+  .mobile-app{
+    max-width:none !important;
+    width:100vw !important;
+    height:100dvh !important;
+    border:0 !important;
+    border-radius:0 !important;
+    box-shadow:none !important;
+  }
+  .content-scroll{
+    height:100% !important;
+    overflow-y:auto !important;
+  }
+}
+
+/* Small iPhone tuning */
+@media(max-width:390px){
+  .content-scroll{
+    padding-left:14px !important;
+    padding-right:14px !important;
+  }
+  .hero-card{
+    padding:17px !important;
+  }
+  .hero-content{
+    width:66% !important;
+  }
+  .hero-tags{
+    gap:7px !important;
+  }
+  .bottom-nav{
+    left:8px !important;
+    right:8px !important;
+  }
+}
