@@ -39,7 +39,7 @@ const todayDateKey = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n))
 const pad = n => String(n).padStart(2, '0')
 const formatSeconds = seconds => `${pad(Math.floor((seconds || 0) / 60))}:${pad((seconds || 0) % 60)}`
-const WORKOUT_DRAFT_KEY='one_fitness_active_workout_v3'\n
+const WORKOUT_DRAFT_KEY = 'one_fitness_active_workout_v3'
 let oneFitnessAudioContext = null
 function primeAudio() {
   try {
