@@ -1,6 +1,8 @@
 import { Check, ChevronRight, Clock3, Dumbbell, Home, Sparkles, Trophy, X } from 'lucide-react'
 import { coachAssets, getExerciseGuide } from '../assets'
 
+const formatShortDate=(date)=>new Intl.DateTimeFormat('fr-FR',{day:'numeric',month:'short'}).format(new Date(date)).replace('.','')
+
 export function SafeImage({ src, fallback='/coach.svg', alt='', className='' }) {
   if(typeof src==='string' && src.startsWith('sprite:')){
     const [,sheet,key]=src.split(':')
@@ -68,7 +70,7 @@ export function CompletionScreen({ summary, tomorrow, onHome, onTomorrow }) {
       </section>
 
       {tomorrow?.workout && <section className="completion-next">
-        <div><p className="eyebrow">DEMAIN</p><h3>{tomorrow.workout.title}</h3><span>{tomorrow.workout.duration} · {tomorrow.workout.focus}</span></div>
+        <div><p className="eyebrow">DEMAIN · {formatShortDate(tomorrow.date)}</p><h3>{tomorrow.workout.title}</h3><span>{tomorrow.workout.duration} · {tomorrow.workout.focus}</span></div>
         <Sparkles size={22}/>
       </section>}
 
