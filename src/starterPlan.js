@@ -92,10 +92,26 @@ export function getWeekPlan(week=1){
   }
 }
 
-export function getTodayWorkout(programStartedAt){
-  const week=getProgramWeek(programStartedAt)
+export function getWorkoutForDate(programStartedAt,targetDate=new Date()){
+  const target=new Date(targetDate)
+  const start=programStartedAt?new Date(`${programStartedAt}T00:00:00`):new Date()
+  start.setHours(0,0,0,0)
+  target.setHours(0,0,0,0)
+  const offset=Math.max(0,Math.floor((target-start)/(1000*60*60*24)))
+  const week=Math.min(6,Math.floor(offset/7)+1)
+  const day=target.getDay()
   const plan=getWeekPlan(week)
-  return {week,day:new Date().getDay(),workout:plan[new Date().getDay()],plan}
+  return {week,day,workout:plan[day],plan,date:target}
+}
+
+export function getTodayWorkout(programStartedAt){
+  return getWorkoutForDate(programStartedAt,new Date())
+}
+
+export function getTomorrowWorkout(programStartedAt){
+  const d=new Date()
+  d.setDate(d.getDate()+1)
+  return getWorkoutForDate(programStartedAt,d)
 }
 
 export function getProgramMeta(week=1){
@@ -104,7 +120,38 @@ export function getProgramMeta(week=1){
     week:Math.min(6,Math.max(1,week)),
     totalWeeks:6,
     phase:p.label,
-    progress:Math.round((Math.min(6,Math.max(1,week))/6)*100),
+  }
+}
+
+export function getProgramStats(sessions=[]){
+  const totalWorkouts=[1,2,3,4,5,6].reduce((total,week)=>{
+    const plan=getWeekPlan(week)
+    return total+Object.values(plan).filter(day=>day.exercises.length>0).length
+  },0)
+  const unique=new Map()
+  for(const s of sessions){
+    if(!s?.program_week && s?.program_week!==0) continue
+    if(!Number.isInteger(s?.program_day)) continue
+    const key=`${s.program_week}:${s.program_day}`
+    const previous=unique.get(key)
+    if(!previous || Number(s.completion_percent||0)>Number(previous.completion_percent||0)) unique.set(key,s)
+  }
+  const completed=[...unique.values()].filter(s=>s.completed_at).length
+  return {
+    totalWorkouts,
+    completed,
+    percent:totalWorkouts?Math.round((completed/totalWorkouts)*100):0,
+  }
+}
+
+export function getWeekStats(week,sessions=[]){
+  const plan=getWeekPlan(week)
+  const trainingDays=Object.entries(plan).filter(([,day])=>day.exercises.length>0)
+  const completedDays=trainingDays.filter(([day])=>sessions.some(s=>Number(s.program_week)===Number(week)&&Number(s.program_day)===Number(day)&&s.completed_at)).length
+  return {
+    total:trainingDays.length,
+    completed:completedDays,
+    percent:trainingDays.length?Math.round(completedDays/trainingDays.length*100):0,
   }
 }
 
