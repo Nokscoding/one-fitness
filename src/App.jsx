@@ -38,6 +38,18 @@ const initialTab = () => {
   return fromPush && tabKeys.has(requested) ? requested : 'home'
 }
 const formatDate = (date = new Date()) => new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' }).format(date)
+const formatShortDate = (date = new Date()) => new Intl.DateTimeFormat('fr-FR', { day:'numeric', month:'short' }).format(date).replace('.', '')
+const formatFullDate = (date = new Date()) => new Intl.DateTimeFormat('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' }).format(date)
+const getProgramDateForWeekDay = (programStartedAt, week, day) => {
+  const start = programStartedAt ? new Date(`${programStartedAt}T00:00:00`) : new Date()
+  start.setHours(0,0,0,0)
+  const blockStart = new Date(start)
+  blockStart.setDate(blockStart.getDate() + (Math.max(1,Number(week))-1)*7)
+  const delta = (Number(day) - blockStart.getDay() + 7) % 7
+  const result = new Date(blockStart)
+  result.setDate(result.getDate() + delta)
+  return result
+}
 const startOfTodayISO = () => { const d = new Date(); d.setHours(0,0,0,0); return d.toISOString() }
 const todayDateKey = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lubumbashi' }).format(new Date())
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n))
@@ -227,7 +239,7 @@ function HomeScreen({ profile, waterMl, meals, sessions, sleepLog, pushState, wo
 
   return <>
     <header className="topbar">
-      <div><p className="tiny">{formatDate()}</p><h1>Salut, {name} 👋</h1><p className="muted">Semaine {today.week}/6 · phase {meta.phase}</p></div>
+      <div><p className="tiny">{formatFullDate(today.date)}</p><h1>Salut, {name} 👋</h1><p className="muted">Semaine {today.week}/6 · phase {meta.phase}</p></div>
       <div className="profile-stack"><SafeImage src={coachAssets.ready} alt="Coach"/><button className="icon-button" onClick={()=>onTab('profile')}><Bell size={20}/>{pushState!=='active'&&<i/>}</button></div>
     </header>
 
@@ -240,7 +252,7 @@ function HomeScreen({ profile, waterMl, meals, sessions, sleepLog, pushState, wo
 
     <section className={`hero-card ${todayDone?'done':''}`}>
       <div className="hero-content">
-        <span className="pill-label">{todayDone?'SÉANCE DU JOUR TERMINÉE':'SÉANCE DU JOUR'}</span>
+        <span className="pill-label">{todayDone?'SÉANCE DU JOUR TERMINÉE':'SÉANCE DU JOUR'} · {formatShortDate(today.date)}</span>
         <h2>{today.workout.title}</h2>
         <p>{today.workout.focus}</p>
         <div className="hero-tags"><span><Clock3 size={15}/> {today.workout.duration}</span><span><Home size={15}/> Maison</span></div>
@@ -264,7 +276,7 @@ function HomeScreen({ profile, waterMl, meals, sessions, sleepLog, pushState, wo
     </button>}
 
     <section className="tomorrow-card" onClick={()=>onTab('workout')}>
-      <div><p className="eyebrow">DEMAIN</p><h3>{tomorrow.workout.title}</h3><span>{tomorrow.workout.duration} · {tomorrow.workout.focus}</span></div>
+      <div><p className="eyebrow">DEMAIN · {formatShortDate(tomorrow.date)}</p><h3>{tomorrow.workout.title}</h3><span>{tomorrow.workout.duration} · {tomorrow.workout.focus}</span></div>
       <ChevronRight size={21}/>
     </section>
 
@@ -301,13 +313,13 @@ function WorkoutScreen({ profile, exercises, sessions, onStartWorkout }) {
     <header className="screen-header"><div><p className="eyebrow">PROGRAMME MAISON</p><h1>Mes séances</h1><p className="muted">Planning réel, aujourd’hui et demain.</p></div><span className="big-icon"><Dumbbell/></span></header>
 
     <div className="day-toggle">
-      <button className={dayOffset===0?'active':''} onClick={()=>setDayOffset(0)}>Aujourd’hui</button>
-      <button className={dayOffset===1?'active':''} onClick={()=>setDayOffset(1)}>Demain</button>
+      <button className={dayOffset===0?'active':''} onClick={()=>setDayOffset(0)}><span>Aujourd’hui</span><small>{formatShortDate(new Date())}</small></button>
+      <button className={dayOffset===1?'active':''} onClick={()=>setDayOffset(1)}><span>Demain</span><small>{formatShortDate(new Date(Date.now()+86400000))}</small></button>
     </div>
 
     <section className="selected-workout-card">
       <div className="selected-workout-copy">
-        <p className="eyebrow">{dayOffset===0?'AUJOURD’HUI':'DEMAIN'} · SEMAINE {selected.week}</p>
+        <p className="eyebrow">{dayOffset===0?'AUJOURD’HUI':'DEMAIN'} · {formatShortDate(selected.date)} · SEMAINE {selected.week}</p>
         <h2>{selected.workout.title}</h2>
         <p>{selected.workout.duration} · {selected.workout.focus}</p>
         {selectedSession
@@ -330,7 +342,7 @@ function WorkoutScreen({ profile, exercises, sessions, onStartWorkout }) {
         const completed=sessions.some(s=>Number(s.program_week)===Number(viewWeek)&&Number(s.program_day)===Number(day)&&s.completed_at)
         return <article key={day} className={`day-card ${isToday?'active':''}`}>
           <div className="day-number">{dayLabels[day]?.slice(0,1)}</div>
-          <div className="day-body"><b>{data.title}</b><span>{data.duration} · {data.focus}</span></div>
+          <div className="day-body"><b>{data.title}</b><span>{formatShortDate(getProgramDateForWeekDay(profile?.program_started_at,viewWeek,Number(day)))} · {data.duration} · {data.focus}</span></div>
           {completed?<span className="done-pill"><Check size={13}/></span>:data.exercises.length?<button className="day-play" onClick={()=>onStartWorkout(data,viewWeek,Number(day))}><Play size={15}/></button>:<span className="rest-badge">Repos</span>}
         </article>
       })}
@@ -398,7 +410,7 @@ function ProgressScreen({ latest, measurementHistory, sessions, onAddMeasurement
 
     <section className="section-block"><div className="section-title"><h2>Dernier point</h2><Trophy size={20}/></div><div className="measure-grid"><StatPill icon={Weight} label="Poids" value={latest?.weight_kg?`${latest.weight_kg} kg`:'—'}/><StatPill icon={Target} label="Poitrine" value={latest?.chest_cm?`${latest.chest_cm} cm`:'—'}/><StatPill icon={Flame} label="Pompes max" value={latest?.pushups_max||'—'}/><StatPill icon={Clock3} label="Planche" value={latest?.plank_seconds?`${latest.plank_seconds}s`:'—'}/></div></section>
 
-    <section className="section-block"><div className="section-title"><h2>Historique séances</h2><CalendarDays size={20}/></div>{sessions.length?<div className="session-list">{sessions.slice(0,10).map(s=><div className="session-row" key={s.id}><span className="icon-orb blue"><Check size={16}/></span><div><b>{s.title}</b><p>{new Date(s.started_at).toLocaleDateString('fr-FR')} · Semaine {s.program_week||'—'}</p></div><span>{s.duration_seconds?`${Math.round(s.duration_seconds/60)} min`:'Terminé'}</span></div>)}</div>:<div className="empty-state">Ta première séance terminée apparaîtra ici.</div>}</section>
+    <section className="section-block"><div className="section-title"><h2>Historique séances</h2><CalendarDays size={20}/></div>{sessions.length?<div className="session-list">{sessions.slice(0,10).map(s=><div className="session-row" key={s.id}><span className="icon-orb blue"><Check size={16}/></span><div><b>{s.title}</b><p>{new Intl.DateTimeFormat('fr-FR',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(s.started_at)).replace('.', '')} · Semaine {s.program_week||'—'}</p></div><span>{s.duration_seconds?`${Math.round(s.duration_seconds/60)} min`:'Terminé'}</span></div>)}</div>:<div className="empty-state">Ta première séance terminée apparaîtra ici.</div>}</section>
 
     {open&&<div className="modal-backdrop"><form className="modal measurement-modal" onSubmit={save}><div className="modal-head"><div><p className="eyebrow">NOUVEAU POINT</p><h2>Mesures & performances</h2></div><button type="button" className="icon-button" onClick={()=>setOpen(false)}><X/></button></div>
       <div className="split"><label>Poids kg<input inputMode="decimal" value={m.weight_kg} onChange={e=>setM({...m,weight_kg:e.target.value})}/></label><label>Cou cm<input inputMode="decimal" value={m.neck_cm} onChange={e=>setM({...m,neck_cm:e.target.value})}/></label></div>
