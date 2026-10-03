@@ -735,6 +735,8 @@ export default function App() {
   const [sleepLog,setSleepLog]=useState(null)
   const [pushState,setPushState]=useState('default')
   const [activeWorkout,setActiveWorkout]=useState(null)
+  const [coachPopup,setCoachPopup]=useState(null)
+  const [completionSummary,setCompletionSummary]=useState(null)
 
   const appWakeLockRef=useRef(null)
 
@@ -817,6 +819,26 @@ export default function App() {
     return()=>{mounted=false;subscription.unsubscribe()}
   },[])
 
+  useEffect(()=>{
+    if(loading || !profile?.onboarding_complete || activeWorkout || completionSummary) return
+    const key=`one_fitness_coach_welcome_${todayDateKey()}`
+    if(sessionStorage.getItem(key)) return
+    const today=getTodayWorkout(profile.program_started_at)
+    const completed=sessions.some(s=>Number(s.program_week)===Number(today.week)&&Number(s.program_day)===Number(today.day)&&s.completed_at)
+    setCoachPopup({
+      variant:completed?'complete':'welcome',
+      title:`Salut ${profile.display_name||'Noks'} 👋`,
+      message:completed
+        ? `Ta séance du jour est déjà validée. Aujourd’hui, priorité à l’eau, aux repas et à la récupération.`
+        : today.workout.exercises.length
+          ? `Aujourd’hui : ${today.workout.title}. ${today.workout.duration}, à la maison. Je reste avec toi pendant la séance.`
+          : `Aujourd’hui, récupération. On garde l’eau, les repas et le sommeil propres pour repartir fort demain.`,
+      actionLabel:completed?'Voir demain':today.workout.exercises.length?'Commencer':'Compris',
+      action:completed?'tomorrow':today.workout.exercises.length?'start':'close',
+    })
+    sessionStorage.setItem(key,'1')
+  },[loading,profile,activeWorkout,completionSummary,sessions])
+
   const enablePush=async()=>{
     const standalone=window.matchMedia?.('(display-mode: standalone)').matches||window.navigator.standalone
     const isiOS=/iPhone|iPad|iPod/i.test(navigator.userAgent)
@@ -834,7 +856,7 @@ export default function App() {
   const saveReminder=async item=>{if(!user)return;const payload={user_id:user.id,kind:item.kind,title:item.title,body:item.body||'',time_local:String(item.time_local).slice(0,5),days_of_week:item.days_of_week||[0,1,2,3,4,5,6],enabled:item.enabled!==false,repeat_every_minutes:item.repeat_every_minutes||null,window_start:item.window_start?String(item.window_start).slice(0,5):null,window_end:item.window_end?String(item.window_end).slice(0,5):null,target_path:item.target_path||'/'};const existing=reminders.find(r=>r.kind===item.kind);const q=supabase.from(TABLE.reminders);const {data,error}=existing?await q.update(payload).eq('id',existing.id).select().single():await q.insert(payload).select().single();if(!error)setReminders(v=>[...v.filter(r=>r.kind!==item.kind),data])}
   const saveRecovery=async values=>{if(!user)return;const payload={user_id:user.id,sleep_date:todayDateKey(),quality:Number(values.quality)||null,fatigue:Number(values.fatigue)||null,soreness:Number(values.soreness)||null};const {data,error}=await supabase.from(TABLE.sleep).upsert(payload,{onConflict:'user_id,sleep_date'}).select().single();if(!error)setSleepLog(data)}
   const completeWorkout=async(done,elapsed,week,day)=>{
-    if(!user)return
+    if(!user||!activeWorkout)return
     const now=new Date()
     const started=new Date(now.getTime()-elapsed*1000)
     const workout=activeWorkout.workout
@@ -849,10 +871,19 @@ export default function App() {
       const rows=done.map(x=>({session_id:session.id,user_id:user.id,exercise_id:x.exercise.id,set_number:x.set_number,reps:x.reps,seconds:x.seconds,completed:!x.skipped}))
       if(rows.length)await supabase.from(TABLE.sets).insert(rows)
       setSessions(v=>[session,...v])
+      setCompletionSummary({
+        name:profile?.display_name||'Noks',
+        durationMinutes:Math.max(1,Math.round(elapsed/60)),
+        completedSets:completedUnits,
+        totalSets:totalUnits,
+        percent:completionPercent,
+        title:workout.title,
+      })
+    } else if(error) {
+      alert('La séance est terminée, mais son enregistrement a échoué. Réessaie depuis l’historique.')
     }
     try{localStorage.removeItem(WORKOUT_DRAFT_KEY)}catch{}
     setActiveWorkout(null)
-    changeTab('progress')
   }
 
   if(loading)return <main className="loading-screen"><img src="/icon.svg" alt="One Fitness"/><Spinner/></main>
@@ -860,6 +891,17 @@ export default function App() {
   if(!profile?.onboarding_complete)return <Onboarding user={user} onDone={p=>{setProfile(p);loadData(user)}}/>
 
   const {week,day,workout}=getTodayWorkout(profile.program_started_at)
+  const tomorrow=getTomorrowWorkout(profile.program_started_at)
+  const handleCoachPopupAction=()=>{
+    const action=coachPopup?.action
+    setCoachPopup(null)
+    if(action==='start'){
+      primeAudio()
+      setActiveWorkout({workout,week,day})
+    }else if(action==='tomorrow'){
+      changeTab('workout')
+    }
+  }
 
   return <div className="app-shell"><main className="mobile-app">
     <div className="content-scroll">
@@ -871,5 +913,12 @@ export default function App() {
     </div>
     <nav className="bottom-nav">{tabs.map(([key,Icon,label])=><button key={key} className={tab===key?'active':''} onClick={()=>changeTab(key)}><Icon size={21}/><span>{label}</span></button>)}</nav>
     {activeWorkout&&<ActiveWorkout workout={activeWorkout.workout} week={activeWorkout.week} day={activeWorkout.day} exercises={exercises} onClose={()=>setActiveWorkout(null)} onComplete={completeWorkout}/>}
+    <CoachPopup popup={coachPopup} onClose={()=>setCoachPopup(null)} onAction={handleCoachPopupAction}/>
+    <CompletionScreen
+      summary={completionSummary}
+      tomorrow={tomorrow}
+      onHome={()=>{setCompletionSummary(null);changeTab('home')}}
+      onTomorrow={()=>{setCompletionSummary(null);changeTab('workout')}}
+    />
   </main></div>
 }
