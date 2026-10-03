@@ -756,15 +756,19 @@ export default function App() {
     const now=new Date()
     const started=new Date(now.getTime()-elapsed*1000)
     const workout=activeWorkout.workout
+    const totalUnits=workout.exercises.reduce((sum,x)=>sum+x.sets,0)
+    const completedUnits=done.filter(x=>!x.skipped).length
+    const completionPercent=clamp(Math.round(completedUnits/Math.max(1,totalUnits)*100),0,100)
     const {data:session,error}=await supabase.from(TABLE.sessions).insert({
       user_id:user.id,title:workout.title,started_at:started.toISOString(),completed_at:now.toISOString(),
-      duration_seconds:elapsed,program_week:week,program_day:day,completion_percent:100,
+      duration_seconds:elapsed,program_week:week,program_day:day,completion_percent:completionPercent,
     }).select().single()
     if(!error&&session){
-      const rows=done.map(x=>({session_id:session.id,user_id:user.id,exercise_id:x.exercise.id,set_number:x.set_number,reps:x.reps,seconds:x.seconds,completed:true}))
+      const rows=done.map(x=>({session_id:session.id,user_id:user.id,exercise_id:x.exercise.id,set_number:x.set_number,reps:x.reps,seconds:x.seconds,completed:!x.skipped}))
       if(rows.length)await supabase.from(TABLE.sets).insert(rows)
       setSessions(v=>[session,...v])
     }
+    try{localStorage.removeItem(WORKOUT_DRAFT_KEY)}catch{}
     setActiveWorkout(null)
     changeTab('progress')
   }
