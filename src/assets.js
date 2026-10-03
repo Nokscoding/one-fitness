@@ -13,10 +13,11 @@ export const coachAssets = {
 
 export const exerciseGuideAssets = {
   'pushup': 'sprite:exercise:pushups',
-  'wall-pushup': 'sprite:exercise:pushups',
+  'wall-pushup': 'sprite:exercise:wall-pushups',
   'hand-gripper-reps': 'sprite:exercise:hand-gripper',
   'hand-gripper-hold': 'sprite:exercise:hand-gripper',
   'reverse-crunch': 'sprite:exercise:reverse-crunch',
+  'plank': 'sprite:exercise:plank',
   'jump-rope-intervals': 'sprite:exercise:jump-rope',
   'neck-front-isometric': 'sprite:exercise:neck-isometric',
   'neck-back-isometric': 'sprite:exercise:neck-isometric',
