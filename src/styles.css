@@ -728,7 +728,7 @@ input,select,textarea{font-size:16px!important} /* empêche le zoom automatique 
 }
 .visual-sprite--exercise{
   background-image:url('/assets/exercise-sprite.webp');
-  background-size:300% 300%;
+  background-size:300% 400%;
 }
 /* Coach sheet: 5 columns x 2 rows */
 .visual-sprite--ready{background-position:0% 0%}
@@ -744,12 +744,14 @@ input,select,textarea{font-size:16px!important} /* empêche le zoom automatique 
 /* Exercise sheet: 3 columns x 3 rows */
 .visual-sprite--jumping-jacks{background-position:0% 0%}
 .visual-sprite--mountain-climbers{background-position:100% 0%}
-.visual-sprite--pushups{background-position:0% 50%}
-.visual-sprite--squats{background-position:50% 50%}
-.visual-sprite--reverse-crunch{background-position:100% 50%}
-.visual-sprite--bicycle-crunch{background-position:0% 100%}
-.visual-sprite--hand-gripper{background-position:50% 100%}
-.visual-sprite--neck-isometric{background-position:100% 100%}
+.visual-sprite--pushups{background-position:0% 33.333%}
+.visual-sprite--wall-pushups{background-position:50% 33.333%}
+.visual-sprite--squats{background-position:100% 33.333%}
+.visual-sprite--reverse-crunch{background-position:0% 66.667%}
+.visual-sprite--bicycle-crunch{background-position:50% 66.667%}
+.visual-sprite--plank{background-position:100% 66.667%}
+.visual-sprite--hand-gripper{background-position:0% 100%}
+.visual-sprite--neck-isometric{background-position:50% 100%}
 /* jump-rope exists in both sheets; exercise contexts explicitly use exercise sprite */
 .exercise-visual .visual-sprite--jump-rope{background-position:50% 0%}
 
