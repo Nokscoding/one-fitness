@@ -5,6 +5,7 @@ import {
   UserRound, Utensils, Weight, X, Zap,
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
+import { enableOneFitnessPush, getOneFitnessPushState } from './lib/push'
 import { mealMoments, starterWeek } from './starterPlan'
 
 const TABLE = {
@@ -26,6 +27,11 @@ const tabs = [
   ['progress', Activity, 'Progrès'],
   ['profile', UserRound, 'Moi'],
 ]
+const tabKeys = new Set(tabs.map(([key]) => key))
+const initialTab = () => {
+  const requested = new URLSearchParams(window.location.search).get('tab')
+  return tabKeys.has(requested) ? requested : 'home'
+}
 
 const formatDate = (date = new Date()) => new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' }).format(date)
 const startOfTodayISO = () => { const d = new Date(); d.setHours(0,0,0,0); return d.toISOString() }
@@ -174,21 +180,69 @@ function ProgressScreen({ latest, sessions, onAddMeasurement }) {
 function ProfileScreen({ profile, reminders, onSaveProfile, onSaveReminder, onLogout }) {
   const [draft,setDraft]=useState(profile)
   const [notificationState,setNotificationState]=useState(typeof Notification!=='undefined'?Notification.permission:'unsupported')
+  const [notificationMessage,setNotificationMessage]=useState('')
   useEffect(()=>setDraft(profile),[profile])
-  const requestNotifications=async()=>{if(!('Notification'in window))return;const p=await Notification.requestPermission();setNotificationState(p);if(p==='granted'&&navigator.serviceWorker){const reg=await navigator.serviceWorker.ready;reg.showNotification('One Fitness est prêt 💙',{body:'Les notifications locales sont autorisées. Les rappels serveur seront reliés après le déploiement Netlify.',icon:'/icon.svg'})}}
+  useEffect(()=>{
+    let active=true
+    getOneFitnessPushState().then(state=>{if(active)setNotificationState(state)}).catch(()=>{})
+    return()=>{active=false}
+  },[])
+
+  const requestNotifications=async()=>{
+    try {
+      setNotificationMessage('Activation…')
+      const result=await enableOneFitnessPush()
+      setNotificationState(result.state)
+      setNotificationMessage(result.message||'')
+    } catch (error) {
+      setNotificationMessage(error?.message || 'Impossible d’activer les notifications.')
+    }
+  }
+
   const defaults=[
-    {kind:'workout',title:'Séance One Fitness',body:'C’est l’heure de ta séance.',time_local:profile?.preferred_workout_time?.slice?.(0,5)||'18:30'},
-    {kind:'water',title:'Hydratation',body:'Pense à boire un peu d’eau.',time_local:'10:30'},
-    {kind:'meal',title:'Déjeuner',body:'C’est l’heure de ton repas.',time_local:'13:00'},
-    {kind:'sleep',title:'Récupération',body:'Prépare ton sommeil et ta récupération.',time_local:'22:30'},
+    {kind:'workout',title:'Séance One Fitness',body:'C’est l’heure de ta séance.',time_local:profile?.preferred_workout_time?.slice?.(0,5)||'18:30',target_path:'/?tab=workout'},
+    {kind:'water',title:'Hydratation',body:'Pense à boire un peu d’eau.',time_local:'08:30',repeat_every_minutes:120,window_start:'08:30',window_end:'22:30',target_path:'/?tab=nutrition'},
+    {kind:'breakfast',title:'Petit-déjeuner',body:'Ton petit-déjeuner est prévu maintenant.',time_local:'08:00',target_path:'/?tab=nutrition'},
+    {kind:'lunch',title:'Déjeuner',body:'C’est l’heure de ton déjeuner.',time_local:'13:00',target_path:'/?tab=nutrition'},
+    {kind:'snack',title:'Collation',body:'Ta collation est prévue maintenant.',time_local:'17:00',target_path:'/?tab=nutrition'},
+    {kind:'dinner',title:'Dîner',body:'C’est l’heure de ton dîner.',time_local:'20:30',target_path:'/?tab=nutrition'},
+    {kind:'sleep',title:'Récupération',body:'Prépare ton sommeil pour mieux récupérer.',time_local:'22:30',target_path:'/?tab=profile'},
   ]
   const saveDraft=()=>onSaveProfile(draft)
+  const reminderIcon=(kind)=>{
+    if(kind==='water') return <Droplets size={16}/>
+    if(['breakfast','lunch','snack','dinner'].includes(kind)) return <Utensils size={16}/>
+    if(kind==='sleep') return <Moon size={16}/>
+    return <Dumbbell size={16}/>
+  }
+  const reminderTime=(item)=>{
+    if(item.repeat_every_minutes) return `Toutes les ${Math.round(item.repeat_every_minutes/60)} h · ${String(item.window_start||item.time_local).slice(0,5)}–${String(item.window_end||'22:30').slice(0,5)}`
+    return String(item.time_local).slice(0,5)
+  }
+
   return <>
     <header className="screen-header"><div><p className="eyebrow">TON ESPACE</p><h1>Profil & rappels</h1><p className="muted">Tes réglages One Fitness uniquement.</p></div><span className="big-icon"><Settings/></span></header>
     <section className="profile-card"><img src="/coach.svg" alt="Coach One Fitness"/><div><p className="eyebrow">OBJECTIF</p><h2>Meilleure silhouette</h2><p>Cou · avant-bras · poignets · pecs · abdos · cardio</p></div></section>
     <section className="section-block"><div className="section-title"><h2>Mon profil</h2><UserRound size={20}/></div><div className="grid-form"><label>Nom affiché<input value={draft?.display_name||''} onChange={e=>setDraft({...draft,display_name:e.target.value})}/></label><div className="split"><label>Poids kg<input value={draft?.weight_kg||''} onChange={e=>setDraft({...draft,weight_kg:e.target.value})}/></label><label>Taille cm<input value={draft?.height_cm||''} onChange={e=>setDraft({...draft,height_cm:e.target.value})}/></label></div><label>Heure d’entraînement<input type="time" value={draft?.preferred_workout_time?.slice?.(0,5)||'18:30'} onChange={e=>setDraft({...draft,preferred_workout_time:e.target.value})}/></label><label>Objectif eau ml<input inputMode="numeric" value={draft?.water_target_ml||2000} onChange={e=>setDraft({...draft,water_target_ml:e.target.value})}/></label><button className="primary-button small" onClick={saveDraft}>Enregistrer</button></div></section>
     <section className="section-block"><div className="section-title"><h2>Équipement</h2><Dumbbell size={20}/></div><div className="chip-row"><span className="selected">✓ Hand gripper</span><span className="selected">✓ Corde à sauter</span><span>Poids du corps</span><span className="locked">+ Haltères plus tard</span></div></section>
-    <section className="section-block"><div className="section-title"><h2>Rappels</h2><Bell size={20}/></div><button className="notification-permission" onClick={requestNotifications}><span className="icon-orb blue"><Bell size={17}/></span><div><b>Notifications de l’app</b><p>État : {notificationState}</p></div><ChevronRight size={18}/></button><div className="reminder-list">{defaults.map(d=>{const saved=reminders.find(r=>r.kind===d.kind); const item=saved||d;return <div className="reminder-row" key={d.kind}><span className="icon-orb dark">{d.kind==='water'?<Droplets size={16}/>:d.kind==='meal'?<Utensils size={16}/>:d.kind==='sleep'?<Moon size={16}/>:<Dumbbell size={16}/>}</span><div><b>{item.title}</b><p>{String(item.time_local).slice(0,5)}</p></div><button className={saved?.enabled===false?'toggle':'toggle on'} onClick={()=>onSaveReminder({...item,kind:d.kind,enabled:saved? !saved.enabled:true})}><i/></button></div>})}</div><p className="fine-print">Les rappels sont déjà stockés séparément dans la base One Fitness. L’envoi push automatique quand l’app est fermée sera activé au branchement Netlify + clé VAPID.</p></section>
+    <section className="section-block">
+      <div className="section-title"><h2>Rappels</h2><Bell size={20}/></div>
+      <button className="notification-permission" onClick={requestNotifications}>
+        <span className="icon-orb blue"><Bell size={17}/></span>
+        <div><b>Notifications de l’app</b><p>État : {notificationState==='active'?'activées':notificationState}</p>{notificationMessage&&<p>{notificationMessage}</p>}</div>
+        <ChevronRight size={18}/>
+      </button>
+      <div className="reminder-list">{defaults.map(d=>{
+        const saved=reminders.find(r=>r.kind===d.kind)
+        const item=saved||d
+        return <div className="reminder-row" key={d.kind}>
+          <span className="icon-orb dark">{reminderIcon(d.kind)}</span>
+          <div><b>{item.title}</b><p>{reminderTime(item)}</p></div>
+          <button className={saved?.enabled===false?'toggle':'toggle on'} onClick={()=>onSaveReminder({...item,kind:d.kind,enabled:saved? !saved.enabled:true})}><i/></button>
+        </div>
+      })}</div>
+      <p className="fine-print">Sur iPhone, ajoute One Fitness à l’écran d’accueil puis autorise les notifications. Les rappels sont isolés dans les tables One Fitness et peuvent fonctionner même lorsque la web-app est fermée une fois le push activé.</p>
+    </section>
     <button className="logout-button" onClick={onLogout}><LogOut size={18}/> Se déconnecter</button>
   </>
 }
@@ -205,7 +259,7 @@ function WorkoutModal({ workout, exercises, user, onClose, onComplete }) {
 }
 
 export default function App() {
-  const [user,setUser]=useState(null); const [profile,setProfile]=useState(null); const [loading,setLoading]=useState(true); const [tab,setTab]=useState('home')
+  const [user,setUser]=useState(null); const [profile,setProfile]=useState(null); const [loading,setLoading]=useState(true); const [tab,setTab]=useState(initialTab)
   const [exercises,setExercises]=useState([]); const [waterMl,setWaterMl]=useState(0); const [meals,setMeals]=useState([]); const [latest,setLatest]=useState(null); const [sessions,setSessions]=useState([]); const [reminders,setReminders]=useState([]); const [workoutOpen,setWorkoutOpen]=useState(false)
 
   const loadData=async(currentUser=user)=>{
