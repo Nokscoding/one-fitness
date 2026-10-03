@@ -252,3 +252,19 @@ button:disabled { opacity: .65; cursor: default; }
 @media (max-width: 350px) {
   .equipment-grid { grid-template-columns: 1fr; }
 }
+
+.auth-switch {
+  width: 100%;
+  margin-top: 12px;
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  font-size: 10px;
+  font-weight: 800;
+  padding: 8px;
+}
+.error-note {
+  background: #fff3f3;
+  color: #a72a2a;
+  border: 1px solid #ffdede;
+}
