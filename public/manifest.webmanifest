@@ -1,0 +1,13 @@
+{
+  "name": "One Fitness",
+  "short_name": "One Fitness",
+  "description": "Ton coach personnel fitness, cardio, nutrition et récupération.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#07162f",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
