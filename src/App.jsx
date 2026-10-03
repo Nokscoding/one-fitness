@@ -6,7 +6,8 @@ import {
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import { enableOneFitnessPush, getOneFitnessPushState } from './lib/push'
-import { dayLabels, getProgramMeta, getProgramWeek, getTodayWorkout, getWeekPlan, mealMoments } from './starterPlan'
+import { coachAssets, getExerciseGuide } from './assets'
+import { dayLabels, getProgramMeta, getProgramStats, getProgramWeek, getTodayWorkout, getTomorrowWorkout, getWeekPlan, getWeekStats, getWorkoutForDate, mealMoments } from './starterPlan'
 
 const TABLE = {
   profile: 'one_fitness_profiles',
