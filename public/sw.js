@@ -1,5 +1,5 @@
 const CACHE = 'one-fitness-v1'
-const APP_SHELL = ['/', '/manifest.webmanifest', '/icon.svg', '/logo.svg', '/coach.webp']
+const APP_SHELL = ['/', '/manifest.webmanifest', '/icon.svg', '/logo.svg', '/coach.svg']
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(APP_SHELL)))
