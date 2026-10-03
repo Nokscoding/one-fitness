@@ -2,6 +2,14 @@ import { Check, ChevronRight, Clock3, Dumbbell, Home, Sparkles, Trophy, X } from
 import { coachAssets, getExerciseGuide } from '../assets'
 
 export function SafeImage({ src, fallback='/coach.svg', alt='', className='' }) {
+  if(typeof src==='string' && src.startsWith('sprite:')){
+    const [,sheet,key]=src.split(':')
+    return <span
+      role="img"
+      aria-label={alt}
+      className={`visual-sprite visual-sprite--${sheet} visual-sprite--${key} ${className}`.trim()}
+    />
+  }
   return <img
     src={src || fallback}
     alt={alt}
