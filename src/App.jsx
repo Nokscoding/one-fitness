@@ -40,6 +40,38 @@ const clamp = (n, min, max) => Math.max(min, Math.min(max, n))
 const pad = n => String(n).padStart(2, '0')
 const formatSeconds = seconds => `${pad(Math.floor((seconds || 0) / 60))}:${pad((seconds || 0) % 60)}`
 
+let oneFitnessAudioContext = null
+function primeAudio() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext
+    if (!AudioCtx) return
+    if (!oneFitnessAudioContext) oneFitnessAudioContext = new AudioCtx()
+    if (oneFitnessAudioContext.state === 'suspended') oneFitnessAudioContext.resume()
+  } catch {}
+}
+function playTimerTone(kind='done') {
+  try {
+    primeAudio()
+    if (!oneFitnessAudioContext) return
+    const ctx=oneFitnessAudioContext
+    const now=ctx.currentTime
+    const notes=kind==='start'?[660,880]:kind==='rest'?[520,660]:[880,1040,1240]
+    notes.forEach((freq,index)=>{
+      const osc=ctx.createOscillator()
+      const gain=ctx.createGain()
+      osc.type='sine'
+      osc.frequency.setValueAtTime(freq,now+index*.11)
+      gain.gain.setValueAtTime(.0001,now+index*.11)
+      gain.gain.exponentialRampToValueAtTime(.22,now+index*.11+.015)
+      gain.gain.exponentialRampToValueAtTime(.0001,now+index*.11+.095)
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start(now+index*.11)
+      osc.stop(now+index*.11+.11)
+    })
+  } catch {}
+}
+
 function Brand({ compact = false }) {
   return <div className={`brand ${compact ? 'compact' : ''}`}><img src="/icon.svg" alt=""/><span><b>One</b> Fitness</span></div>
 }
@@ -352,46 +384,101 @@ function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
   const bySlug=useMemo(()=>Object.fromEntries(exercises.map(e=>[e.slug,e])),[exercises])
   const [exerciseIndex,setExerciseIndex]=useState(0)
   const [setNo,setSetNo]=useState(1)
-  const [phase,setPhase]=useState('work')
-  const [running,setRunning]=useState(false)
-  const [secondsLeft,setSecondsLeft]=useState(0)
+  const [phase,setPhase]=useState('prepare')
+  const [running,setRunning]=useState(true)
+  const [secondsLeft,setSecondsLeft]=useState(5)
   const [pending,setPending]=useState(null)
   const [done,setDone]=useState([])
   const [elapsed,setElapsed]=useState(0)
+  const [wakeState,setWakeState]=useState('activation')
   const startedAt=useRef(Date.now())
+  const wakeLockRef=useRef(null)
+  const timerEndRef=useRef(Date.now()+5000)
 
   const item=workout.exercises[exerciseIndex]
   const exercise=bySlug[item?.slug]
   const isTimed=Boolean(item?.seconds)
 
+  const requestWakeLock=async()=>{
+    if(!('wakeLock' in navigator)){setWakeState('indisponible');return}
+    try{
+      if(wakeLockRef.current && !wakeLockRef.current.released){setWakeState('actif');return}
+      wakeLockRef.current=await navigator.wakeLock.request('screen')
+      setWakeState('actif')
+      wakeLockRef.current.addEventListener('release',()=>setWakeState('pause'))
+    }catch{
+      setWakeState('pause')
+    }
+  }
+
   useEffect(()=>{
-    const timer=setInterval(()=>setElapsed(Math.floor((Date.now()-startedAt.current)/1000)),1000)
-    return()=>clearInterval(timer)
+    primeAudio()
+    requestWakeLock()
+    const onVisibility=()=>{if(document.visibilityState==='visible')requestWakeLock()}
+    document.addEventListener('visibilitychange',onVisibility)
+    return()=>{
+      document.removeEventListener('visibilitychange',onVisibility)
+      try{wakeLockRef.current?.release()}catch{}
+    }
   },[])
+
+  useEffect(()=>{
+    if(phase!=='prepare'){
+      const timer=setInterval(()=>setElapsed(Math.floor((Date.now()-startedAt.current)/1000)),1000)
+      return()=>clearInterval(timer)
+    }
+  },[phase])
 
   useEffect(()=>{
     if(phase==='work'){
       setSecondsLeft(item?.seconds||0)
       setRunning(false)
+      timerEndRef.current=null
     }
   },[exerciseIndex,setNo,phase,item?.seconds])
 
   useEffect(()=>{
     if(!running||secondsLeft<=0)return
-    const t=setTimeout(()=>setSecondsLeft(s=>Math.max(0,s-1)),1000)
-    return()=>clearTimeout(t)
-  },[running,secondsLeft])
+    timerEndRef.current=Date.now()+secondsLeft*1000
+    const tick=()=>{
+      const left=Math.max(0,Math.ceil((timerEndRef.current-Date.now())/1000))
+      setSecondsLeft(left)
+    }
+    tick()
+    const id=setInterval(tick,200)
+    return()=>clearInterval(id)
+  },[running,phase])
 
   useEffect(()=>{
-    if(phase==='rest'&&secondsLeft===0&&pending){
+    if(secondsLeft!==0||!running)return
+
+    if(phase==='prepare'){
+      playTimerTone('start')
+      navigator.vibrate?.([70,45,70])
+      startedAt.current=Date.now()
+      setElapsed(0)
+      setPhase('work')
+      setRunning(Boolean(item?.seconds))
+      return
+    }
+
+    if(phase==='work' && isTimed){
+      playTimerTone('done')
+      navigator.vibrate?.([90,50,90])
+      setRunning(false)
+      return
+    }
+
+    if(phase==='rest' && pending){
+      playTimerTone('rest')
+      navigator.vibrate?.([70,40,70])
       if(pending==='set') setSetNo(n=>n+1)
       if(pending==='exercise'){setExerciseIndex(i=>i+1);setSetNo(1)}
       setPending(null)
       setPhase('work')
-      setRunning(false)
-      navigator.vibrate?.(60)
+      setRunning(Boolean(workout.exercises[pending==='exercise'?exerciseIndex+1:exerciseIndex]?.seconds))
     }
-  },[phase,secondsLeft,pending])
+  },[secondsLeft,running,phase,pending,isTimed,item?.seconds,exerciseIndex,workout.exercises])
 
   if(!item||!exercise) return <div className="session-screen"><div className="session-error">Exercice indisponible.<button onClick={onClose}>Fermer</button></div></div>
 
@@ -403,20 +490,59 @@ function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
     navigator.vibrate?.(35)
     const lastSet=setNo>=totalSets
     const lastExercise=exerciseIndex>=workout.exercises.length-1
-    if(lastSet&&lastExercise){onComplete(next,elapsed,week,day);return}
+    if(lastSet&&lastExercise){
+      playTimerTone('done')
+      navigator.vibrate?.([100,60,100,60,160])
+      onComplete(next,elapsed,week,day)
+      return
+    }
     setPending(lastSet?'exercise':'set')
     setPhase('rest')
     setSecondsLeft(item.rest||45)
     setRunning(true)
   }
 
-  const skipRest=()=>setSecondsLeft(0)
+  const skipRest=()=>{
+    setSecondsLeft(0)
+    setRunning(true)
+  }
+
+  const toggleTimer=()=>{
+    if(running){
+      setRunning(false)
+      timerEndRef.current=null
+    }else{
+      primeAudio()
+      setRunning(true)
+    }
+  }
+
   const completedUnits=done.length
   const totalUnits=workout.exercises.reduce((sum,x)=>sum+x.sets,0)
   const sessionProgress=clamp(Math.round(completedUnits/Math.max(1,totalUnits)*100),0,100)
 
+  if(phase==='prepare') return <div className="session-screen prepare-screen">
+    <header className="session-header">
+      <button className="session-close" onClick={onClose}><X size={20}/></button>
+      <div><span>ÉCRAN</span><b className={wakeState==='actif'?'wake-active':''}>{wakeState==='actif'?'Éveillé':'En attente'}</b></div>
+      <div><span>SÉANCE</span><b>{workout.duration}</b></div>
+    </header>
+    <main className="prepare-main">
+      <div className="prepare-coach"><img src="/coach.svg" alt="Coach One Fitness"/></div>
+      <p className="eyebrow">PRÉPARE-TOI</p>
+      <h1>{workout.title}</h1>
+      <div className="countdown-orb" aria-live="assertive">{secondsLeft}</div>
+      <p>Place-toi correctement. La séance démarre automatiquement après le signal sonore.</p>
+      <button className="prepare-skip" onClick={()=>{setSecondsLeft(0);setRunning(true)}}>Commencer maintenant</button>
+    </main>
+  </div>
+
   return <div className="session-screen">
-    <header className="session-header"><button className="session-close" onClick={onClose}><X size={20}/></button><div><span>SESSION</span><b>{formatSeconds(elapsed)}</b></div><div><span>PROGRÈS</span><b>{sessionProgress}%</b></div></header>
+    <header className="session-header">
+      <button className="session-close" onClick={onClose}><X size={20}/></button>
+      <div><span>DURÉE</span><b>{formatSeconds(elapsed)}</b></div>
+      <div><span>ÉCRAN</span><b className={wakeState==='actif'?'wake-active':''}>{wakeState==='actif'?'Éveillé':wakeState}</b></div>
+    </header>
     <div className="session-progress"><i style={{width:`${sessionProgress}%`}}/></div>
 
     <main className="session-main">
@@ -428,13 +554,23 @@ function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
 
       {phase==='work' ? <>
         {isTimed ? <div className="work-timer">
-          <strong>{formatSeconds(secondsLeft)}</strong>
+          <strong className={secondsLeft===0?'timer-finished':''}>{formatSeconds(secondsLeft)}</strong>
           <div className="timer-actions">
-            <button className="timer-play" onClick={()=>setRunning(v=>!v)}>{running?<Pause size={22}/>:<Play size={22}/>} {running?'Pause':'Démarrer'}</button>
-            <button className="timer-done" onClick={completeSet} disabled={secondsLeft>0&&running}><Check size={20}/> Valider</button>
+            {secondsLeft>0
+              ? <button className="timer-play" onClick={toggleTimer}>{running?<Pause size={22}/>:<Play size={22}/>} {running?'Pause':'Reprendre'}</button>
+              : <button className="timer-play" onClick={()=>{setSecondsLeft(item.seconds);setRunning(false)}}><TimerReset size={22}/> Refaire</button>}
+            <button className="timer-done" onClick={completeSet} disabled={secondsLeft>0}><Check size={20}/> Série finie</button>
           </div>
         </div> : <button className="session-complete" onClick={completeSet}><Check size={22}/> Série terminée</button>}
-      </> : <div className="rest-panel"><span>REPOS</span><strong>{formatSeconds(secondsLeft)}</strong><p>Respire, relâche les muscles et prépare la suite.</p><button onClick={skipRest}>Passer le repos</button></div>}
+      </> : <div className="rest-panel">
+        <span>REPOS</span>
+        <strong>{formatSeconds(secondsLeft)}</strong>
+        <p>La prochaine série démarre à la fin du chrono. Un signal te préviendra.</p>
+        <div className="rest-actions">
+          <button onClick={toggleTimer}>{running?'Pause':'Reprendre'}</button>
+          <button onClick={skipRest}>Passer le repos</button>
+        </div>
+      </div>}
 
       <section className="session-howto"><h2>Technique</h2><ol>{(exercise.instructions||[]).slice(0,4).map((x,i)=><li key={i}>{x}</li>)}</ol>{exercise.safety_notes?.length>0&&<div className="session-safety"><ShieldCheck size={18}/><p>{exercise.safety_notes[0]}</p></div>}</section>
     </main>
@@ -549,8 +685,8 @@ export default function App() {
 
   return <div className="app-shell"><main className="mobile-app">
     <div className="content-scroll">
-      {tab==='home'&&<HomeScreen profile={profile} waterMl={waterMl} meals={meals} sessions={sessions} sleepLog={sleepLog} pushState={pushState} onEnablePush={enablePush} onWater={addWater} onStart={()=>setActiveWorkout({workout,week,day})} onTab={changeTab}/>}
-      {tab==='workout'&&<WorkoutScreen profile={profile} exercises={exercises} sessions={sessions} onStartWorkout={(w,wk,d)=>setActiveWorkout({workout:w,week:wk,day:d})}/>}
+      {tab==='home'&&<HomeScreen profile={profile} waterMl={waterMl} meals={meals} sessions={sessions} sleepLog={sleepLog} pushState={pushState} onEnablePush={enablePush} onWater={addWater} onStart={()=>{primeAudio();setActiveWorkout({workout,week,day})}} onTab={changeTab}/>}
+      {tab==='workout'&&<WorkoutScreen profile={profile} exercises={exercises} sessions={sessions} onStartWorkout={(w,wk,d)=>{primeAudio();setActiveWorkout({workout:w,week:wk,day:d})}}/>}
       {tab==='nutrition'&&<NutritionScreen profile={profile} waterMl={waterMl} meals={meals} onWater={addWater} onAddMeal={addMeal}/>}
       {tab==='progress'&&<ProgressScreen latest={latest} measurementHistory={measurementHistory} sessions={sessions} onAddMeasurement={addMeasurement}/>}
       {tab==='profile'&&<ProfileScreen profile={profile} reminders={reminders} sleepLog={sleepLog} pushState={pushState} onEnablePush={enablePush} onSaveProfile={saveProfile} onSaveReminder={saveReminder} onSaveRecovery={saveRecovery} onLogout={()=>supabase.auth.signOut()}/>}
