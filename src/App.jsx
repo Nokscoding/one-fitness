@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity, Apple, Bell, CalendarDays, Check, ChevronRight, Clock3, Droplets, Dumbbell,
-  Flame, Home, LogOut, Moon, Play, Plus, Settings, ShieldCheck, Sparkles, Target,
-  UserRound, Utensils, Weight, X, Zap,
+  Flame, Home, LogOut, Moon, Pause, Play, Plus, Settings, ShieldCheck, Smartphone,
+  Sparkles, Target, TimerReset, Trophy, UserRound, Utensils, Weight, X, Zap,
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import { enableOneFitnessPush, getOneFitnessPushState } from './lib/push'
-import { mealMoments, starterWeek } from './starterPlan'
+import { dayLabels, getProgramMeta, getProgramWeek, getTodayWorkout, getWeekPlan, mealMoments } from './starterPlan'
 
 const TABLE = {
   profile: 'one_fitness_profiles',
@@ -22,21 +22,23 @@ const TABLE = {
 
 const tabs = [
   ['home', Home, 'Accueil'],
-  ['workout', Dumbbell, 'Séance'],
+  ['workout', Dumbbell, 'Séances'],
   ['nutrition', Utensils, 'Nutrition'],
   ['progress', Activity, 'Progrès'],
   ['profile', UserRound, 'Moi'],
 ]
+
 const tabKeys = new Set(tabs.map(([key]) => key))
 const initialTab = () => {
   const requested = new URLSearchParams(window.location.search).get('tab')
   return tabKeys.has(requested) ? requested : 'home'
 }
-
 const formatDate = (date = new Date()) => new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' }).format(date)
 const startOfTodayISO = () => { const d = new Date(); d.setHours(0,0,0,0); return d.toISOString() }
 const todayDateKey = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lubumbashi' }).format(new Date())
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n))
+const pad = n => String(n).padStart(2, '0')
+const formatSeconds = seconds => `${pad(Math.floor((seconds || 0) / 60))}:${pad((seconds || 0) % 60)}`
 
 function Brand({ compact = false }) {
   return <div className={`brand ${compact ? 'compact' : ''}`}><img src="/icon.svg" alt=""/><span><b>One</b> Fitness</span></div>
@@ -55,7 +57,6 @@ function AuthScreen() {
     e.preventDefault()
     setLoading(true)
     setStatus('')
-
     try {
       if (mode === 'register') {
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://hdsjpsrvoiwqfjuehdkt.supabase.co'
@@ -66,20 +67,15 @@ function AuthScreen() {
         })
         const payload = await response.json()
         if (!response.ok) throw new Error(payload?.error || 'Impossible de créer le compte.')
-
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-        if (signInError) throw signInError
+        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        if (error) throw error
         return
       }
-
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
     } catch (error) {
       const raw = String(error?.message || error || '')
-      const friendly = raw.toLowerCase().includes('invalid login credentials')
-        ? 'E-mail ou mot de passe incorrect.'
-        : raw
-      setStatus(friendly)
+      setStatus(raw.toLowerCase().includes('invalid login credentials') ? 'E-mail ou mot de passe incorrect.' : raw)
     } finally {
       setLoading(false)
     }
@@ -88,19 +84,18 @@ function AuthScreen() {
   return <main className="auth-screen">
     <div className="auth-card">
       <Brand />
-      <img className="auth-coach" src="/coach.svg" alt="Coach One Fitness"/>
-      <p className="eyebrow">TON COACH PERSONNEL</p>
-      <h1>{mode === 'login' ? 'Connecte-toi à One Fitness.' : 'Crée ton compte One Fitness.'}</h1>
-      <p className="muted">{mode === 'login' ? 'Entre simplement ton e-mail et ton mot de passe.' : 'Aucune vérification par e-mail : ton compte est créé directement.'}</p>
-
+      <div className="auth-visual">
+        <img src="/coach.svg" alt="Coach One Fitness"/>
+        <div><span>COACH PERSONNEL</span><b>À la maison. À ton rythme. Tous les jours.</b></div>
+      </div>
+      <h1>{mode === 'login' ? 'Bon retour 👋' : 'Crée ton espace'}</h1>
+      <p className="muted">{mode === 'login' ? 'Entre ton e-mail et ton mot de passe.' : 'Ton compte est utilisable immédiatement.'}</p>
       <form onSubmit={submit} className="auth-form">
         <input type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="E-mail" required />
         <input type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength="8" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Mot de passe" required />
         <button className="primary-button" disabled={loading}>{loading ? 'Patiente…' : mode === 'login' ? 'Se connecter' : 'Créer mon compte'}</button>
       </form>
-
       {status && <p className="status-note error-note">{status}</p>}
-
       <button className="auth-switch" type="button" onClick={()=>{setMode(mode === 'login' ? 'register' : 'login');setStatus('')}}>
         {mode === 'login' ? 'Première fois ? Créer mon compte' : 'J’ai déjà un compte · Me connecter'}
       </button>
@@ -109,140 +104,217 @@ function AuthScreen() {
 }
 
 function Onboarding({ user, onDone }) {
-  const [form, setForm] = useState({ display_name: '', height_cm: '', weight_kg: '', preferred_workout_time: '18:30', water_target_ml: 2000 })
+  const [form, setForm] = useState({
+    display_name: '', height_cm: '', weight_kg: '', preferred_workout_time: '18:30',
+    water_target_ml: 2000, preferred_session_minutes: 30,
+  })
   const [saving, setSaving] = useState(false)
+
   const save = async (e) => {
-    e.preventDefault(); setSaving(true)
+    e.preventDefault()
+    setSaving(true)
     const payload = {
       user_id: user.id,
       display_name: form.display_name || 'Noks',
       height_cm: form.height_cm ? Number(form.height_cm) : null,
       weight_kg: form.weight_kg ? Number(form.weight_kg) : null,
       preferred_workout_time: form.preferred_workout_time || null,
+      preferred_session_minutes: Number(form.preferred_session_minutes) || 30,
       water_target_ml: Number(form.water_target_ml) || 2000,
+      program_started_at: todayDateKey(),
+      equipment: ['hand_gripper','jump_rope'],
       onboarding_complete: true,
     }
     const { data, error } = await supabase.from(TABLE.profile).upsert(payload).select().single()
     setSaving(false)
     if (!error) onDone(data)
   }
+
   return <main className="onboarding">
     <section className="onboarding-card">
       <Brand />
-      <div className="coach-bubble"><img src="/coach.svg" alt="Coach"/><div><b>On prépare ton point de départ.</b><span>Tu pourras modifier ces infos plus tard.</span></div></div>
-      <h1>Ton profil One Fitness</h1>
+      <div className="coach-bubble"><img src="/coach.svg" alt="Coach"/><div><b>Je prépare ton programme de départ.</b><span>6 semaines progressives, à la maison.</span></div></div>
+      <h1>Ton point de départ</h1>
       <form onSubmit={save} className="grid-form">
-        <label>Prénom / nom à afficher<input value={form.display_name} onChange={e=>setForm({...form,display_name:e.target.value})} placeholder="Noks" /></label>
-        <div className="split"><label>Taille (cm)<input inputMode="decimal" value={form.height_cm} onChange={e=>setForm({...form,height_cm:e.target.value})} /></label><label>Poids (kg)<input inputMode="decimal" value={form.weight_kg} onChange={e=>setForm({...form,weight_kg:e.target.value})} /></label></div>
-        <div className="split"><label>Heure préférée<input type="time" value={form.preferred_workout_time} onChange={e=>setForm({...form,preferred_workout_time:e.target.value})}/></label><label>Objectif eau (ml)<input inputMode="numeric" value={form.water_target_ml} onChange={e=>setForm({...form,water_target_ml:e.target.value})}/></label></div>
-        <div className="goal-box"><Target size={18}/><div><b>Objectif principal</b><span>Meilleure silhouette · cou et avant-bras plus épais · pecs · abdos · cardio</span></div></div>
-        <div className="goal-box"><Dumbbell size={18}/><div><b>Matériel actuel</b><span>Hand gripper · corde à sauter · poids du corps</span></div></div>
-        <button className="primary-button" disabled={saving}>{saving ? 'Création…' : 'Créer mon coach'}</button>
+        <label>Nom affiché<input value={form.display_name} onChange={e=>setForm({...form,display_name:e.target.value})} placeholder="Noks"/></label>
+        <div className="split"><label>Taille (cm)<input inputMode="decimal" value={form.height_cm} onChange={e=>setForm({...form,height_cm:e.target.value})}/></label><label>Poids (kg)<input inputMode="decimal" value={form.weight_kg} onChange={e=>setForm({...form,weight_kg:e.target.value})}/></label></div>
+        <div className="split"><label>Heure séance<input type="time" value={form.preferred_workout_time} onChange={e=>setForm({...form,preferred_workout_time:e.target.value})}/></label><label>Durée souhaitée<select value={form.preferred_session_minutes} onChange={e=>setForm({...form,preferred_session_minutes:e.target.value})}><option value="20">20 min</option><option value="30">30 min</option><option value="40">40 min</option></select></label></div>
+        <label>Objectif eau (ml)<input inputMode="numeric" value={form.water_target_ml} onChange={e=>setForm({...form,water_target_ml:e.target.value})}/></label>
+        <div className="goal-box"><Target size={18}/><div><b>Objectif</b><span>Meilleure silhouette · cou et avant-bras plus épais · pecs · abdos · cardio</span></div></div>
+        <div className="goal-box"><Dumbbell size={18}/><div><b>Départ maison</b><span>Hand gripper · corde à sauter · poids du corps</span></div></div>
+        <button className="primary-button" disabled={saving}>{saving ? 'Préparation…' : 'Démarrer mon programme'}</button>
       </form>
     </section>
   </main>
 }
 
-function StatPill({ icon: Icon, label, value }) { return <div className="stat-pill"><Icon size={17}/><div><b>{value}</b><span>{label}</span></div></div> }
+function StatPill({ icon: Icon, label, value }) {
+  return <div className="stat-pill"><Icon size={17}/><div><b>{value}</b><span>{label}</span></div></div>
+}
 
-function HomeScreen({ profile, exercises, waterMl, meals, sessions, sleepLog, onWater, onStart, onTab }) {
-  const today = starterWeek[new Date().getDay()]
+function PushCard({ state, onEnable }) {
+  if (state === 'active') return null
+  const standalone = window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone
+  const isiOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+  return <section className="push-card">
+    <div className="push-icon"><Bell size={20}/></div>
+    <div><b>Active ton coach en arrière-plan</b><p>{isiOS && !standalone ? 'Ajoute d’abord One Fitness à l’écran d’accueil, puis active les notifications.' : 'Reçois les rappels eau, repas, séance et récupération même quand l’app est fermée.'}</p></div>
+    <button onClick={onEnable}>{isiOS && !standalone ? 'Comment ?' : 'Activer'}</button>
+  </section>
+}
+
+function HomeScreen({ profile, waterMl, meals, sessions, sleepLog, pushState, onEnablePush, onWater, onStart, onTab }) {
+  const { week, workout } = getTodayWorkout(profile?.program_started_at)
+  const meta = getProgramMeta(week)
   const target = profile?.water_target_ml || 2000
   const waterPercent = clamp(Math.round((waterMl / target) * 100), 0, 100)
   const name = profile?.display_name || 'Noks'
+  const streak = useMemo(() => {
+    const unique=[...new Set(sessions.map(s=>new Date(s.started_at).toLocaleDateString('en-CA')))]
+    let count=0
+    const d=new Date()
+    for(let i=0;i<30;i++){
+      const key=d.toLocaleDateString('en-CA')
+      if(unique.includes(key)) count++
+      else if(i>0) break
+      d.setDate(d.getDate()-1)
+    }
+    return count
+  },[sessions])
+
   return <>
     <header className="topbar">
-      <div><p className="tiny">{formatDate()}</p><h1>Salut, {name} 👋</h1><p className="muted">Ton coach a préparé ta journée.</p></div>
-      <div className="profile-stack"><img src="/coach.svg" alt="Coach"/><button className="icon-button" onClick={()=>onTab('profile')}><Bell size={20}/><i/></button></div>
+      <div><p className="tiny">{formatDate()}</p><h1>Salut, {name} 👋</h1><p className="muted">Semaine {week}/6 · phase {meta.phase}</p></div>
+      <div className="profile-stack"><img src="/coach.svg" alt="Coach"/><button className="icon-button" onClick={()=>onTab('profile')}><Bell size={20}/>{pushState!=='active'&&<i/>}</button></div>
     </header>
 
+    <section className="program-strip">
+      <div><span>PROGRAMME 6 SEMAINES</span><b>Semaine {week} · {meta.phase}</b></div>
+      <strong>{meta.progress}%</strong>
+      <div className="progress-track"><i style={{width:`${meta.progress}%`}}/></div>
+    </section>
+
     <section className="hero-card">
-      <div className="hero-content"><span className="pill-label">SÉANCE DU JOUR</span><h2>{today.title}</h2><p>{today.subtitle}</p>
-      <div className="hero-tags"><span><Clock3 size={15}/> {today.exercises.length ? '20–35 min' : 'Repos'}</span><span><Home size={15}/> Maison</span></div>
-      {today.exercises.length ? <button className="white-button" onClick={onStart}>Commencer <ChevronRight size={18}/></button> : <button className="white-button" onClick={()=>onTab('progress')}>Voir mes progrès <ChevronRight size={18}/></button>}</div>
-      <img src="/coach.svg" alt="Coach One Fitness" className="hero-coach"/>
+      <div className="hero-content">
+        <span className="pill-label">SÉANCE DU JOUR</span>
+        <h2>{workout.title}</h2>
+        <p>{workout.focus}</p>
+        <div className="hero-tags"><span><Clock3 size={15}/> {workout.duration}</span><span><Home size={15}/> Maison</span></div>
+        {workout.exercises.length
+          ? <button className="white-button" onClick={onStart}><Play size={17}/> Commencer</button>
+          : <button className="white-button" onClick={()=>onTab('progress')}>Récupération <ChevronRight size={18}/></button>}
+      </div>
+      <div className="coach-cutout"><img src="/coach.svg" alt="Coach One Fitness"/></div>
     </section>
 
-    <section className="metric-grid">
-      <article className="metric-card water"><div className="metric-head"><span className="icon-orb blue"><Droplets size={18}/></span><b>Hydratation</b><button onClick={()=>onWater(250)}>+250</button></div><div className="metric-big">{(waterMl/1000).toFixed(1)} L <small>/ {(target/1000).toFixed(1)} L</small></div><div className="progress-track"><i style={{width:`${waterPercent}%`}}/></div><p>{waterPercent >= 100 ? 'Objectif atteint ✓' : `${100-waterPercent}% restant aujourd’hui`}</p></article>
-      <article className="metric-card"><div className="metric-head"><span className="icon-orb dark"><Utensils size={18}/></span><b>Repas</b><button onClick={()=>onTab('nutrition')}>Voir</button></div><div className="metric-big">{meals.length} <small>/ 4</small></div><p>{meals.length ? 'Continue à noter tes repas.' : 'Commence par ton prochain repas.'}</p><div className="meal-dots">{mealMoments.map((m,i)=><i key={m.key} className={i<meals.length?'done':''}/>)}</div></article>
-      <article className="metric-card"><div className="metric-head"><span className="icon-orb blue"><Activity size={18}/></span><b>Progrès</b><button onClick={()=>onTab('progress')}>Voir</button></div><div className="metric-big">{sessions.length} <small>séances</small></div><p>Historique enregistré dans ton espace personnel.</p></article>
-      <article className="metric-card"><div className="metric-head"><span className="icon-orb dark"><Bell size={18}/></span><b>Rappels</b><button onClick={()=>onTab('profile')}>Gérer</button></div><ul className="mini-list"><li><Dumbbell size={15}/> Séance <span>{profile?.preferred_workout_time?.slice?.(0,5) || '18:30'}</span></li><li><Droplets size={15}/> Eau <span>régulier</span></li><li><Moon size={15}/> Récupération <span>soir</span></li></ul></article>
+    <PushCard state={pushState} onEnable={onEnablePush}/>
+
+    <section className="daily-row">
+      <button className="daily-card" onClick={()=>onWater(250)}><span className="icon-orb blue"><Droplets size={18}/></span><div><b>{(waterMl/1000).toFixed(1)} L</b><small>Eau · +250 ml</small></div><strong>{waterPercent}%</strong></button>
+      <button className="daily-card" onClick={()=>onTab('nutrition')}><span className="icon-orb dark"><Utensils size={18}/></span><div><b>{meals.length}/4</b><small>Repas notés</small></div><ChevronRight size={18}/></button>
+      <button className="daily-card" onClick={()=>onTab('progress')}><span className="icon-orb blue"><Flame size={18}/></span><div><b>{streak} j</b><small>Régularité</small></div><ChevronRight size={18}/></button>
     </section>
 
-    <section className="section-block"><div className="section-title"><div><p className="eyebrow">COACH</p><h2>Conseil du jour</h2></div><Sparkles size={22}/></div><div className="coach-message"><img src="/coach.svg" alt="Coach"/><p>{sleepLog?.fatigue >= 4 ? 'Tu as signalé beaucoup de fatigue aujourd’hui. Garde la séance plus légère, soigne la technique et privilégie la récupération.' : today.exercises.some(x=>x.slug.includes('neck')) ? 'Pour la nuque : résistance légère et contrôle total. Aucun mouvement brusque. La qualité passe avant la force.' : 'Le plus important aujourd’hui : terminer proprement la séance prévue. On augmente la difficulté seulement quand la technique reste bonne.'}</p></div></section>
+    <section className="section-block"><div className="section-title"><div><p className="eyebrow">COACH</p><h2>Conseil du jour</h2></div><Sparkles size={22}/></div><div className="coach-message"><img src="/coach.svg" alt="Coach"/><p>{sleepLog?.fatigue >= 4 ? 'Tu as signalé beaucoup de fatigue : garde la séance légère aujourd’hui et arrête si la technique se dégrade.' : workout.exercises.some(x=>x.slug.includes('neck')) ? 'Pour la nuque : résistance légère, mouvement contrôlé, jamais de charge lourde sur la tête.' : 'Cherche une progression régulière. Finir proprement les séries est plus utile que forcer avec une mauvaise technique.'}</p></div></section>
+
+    <section className="section-block compact-block"><div className="section-title"><h2>Ta journée</h2><CalendarDays size={20}/></div><div className="day-agenda"><div><span>08:00</span><b>Petit-déjeuner</b></div><div><span>13:00</span><b>Déjeuner</b></div><div><span>{profile?.preferred_workout_time?.slice?.(0,5)||'18:30'}</span><b>{workout.exercises.length?'Séance':'Récupération'}</b></div><div><span>22:30</span><b>Sommeil / récupération</b></div></div></section>
   </>
 }
 
-function WorkoutScreen({ exercises, onStart }) {
-  const days = Object.entries(starterWeek).sort((a,b)=>Number(a[0])-Number(b[0]))
-  const bySlug = Object.fromEntries(exercises.map(e=>[e.slug,e]))
+function WorkoutScreen({ profile, exercises, sessions, onStartWorkout }) {
+  const currentWeek = getProgramWeek(profile?.program_started_at)
+  const [viewWeek,setViewWeek]=useState(currentWeek)
+  const plan=getWeekPlan(viewWeek)
+  const meta=getProgramMeta(viewWeek)
+  const bySlug=useMemo(()=>Object.fromEntries(exercises.map(e=>[e.slug,e])),[exercises])
+
   return <>
-    <header className="screen-header"><div><p className="eyebrow">PROGRAMME MAISON</p><h1>Mes séances</h1><p className="muted">Poids du corps + hand gripper + corde à sauter.</p></div><span className="big-icon"><Dumbbell/></span></header>
-    <section className="today-workout">
-      <div><span className="pill-label dark-pill">AUJOURD’HUI</span><h2>{starterWeek[new Date().getDay()].title}</h2><p>{starterWeek[new Date().getDay()].subtitle}</p></div>
-      {starterWeek[new Date().getDay()].exercises.length ? <button className="primary-button small" onClick={onStart}><Play size={17}/> Démarrer</button> : <span className="rest-badge">Repos</span>}
+    <header className="screen-header"><div><p className="eyebrow">PROGRAMME MAISON</p><h1>Mes séances</h1><p className="muted">Progression structurée sur 6 semaines.</p></div><span className="big-icon"><Dumbbell/></span></header>
+
+    <section className="phase-card">
+      <div><span>SEMAINE {viewWeek}/6</span><h2>{meta.phase}</h2><p>Objectif : progresser sans brûler les étapes.</p></div>
+      <div className="week-switch">{[1,2,3,4,5,6].map(w=><button key={w} className={w===viewWeek?'active':''} onClick={()=>setViewWeek(w)}>{w}</button>)}</div>
     </section>
+
     <section className="week-list">
-      {days.map(([day,data])=><article key={day} className={`day-card ${Number(day)===new Date().getDay()?'active':''}`}><div className="day-number">{['D','L','M','M','J','V','S'][day]}</div><div className="day-body"><b>{data.title}</b><span>{data.exercises.length ? data.exercises.map(x=>bySlug[x.slug]?.name || x.slug).slice(0,3).join(' · ') : data.subtitle}</span></div><span>{data.exercises.length} ex.</span></article>)}
+      {Object.entries(plan).map(([day,data])=>{
+        const isToday=Number(day)===new Date().getDay() && viewWeek===currentWeek
+        const completed=sessions.some(s=>s.program_week===viewWeek && s.program_day===Number(day))
+        return <article key={day} className={`day-card ${isToday?'active':''}`}>
+          <div className="day-number">{dayLabels[day]?.slice(0,1)}</div>
+          <div className="day-body"><b>{data.title}</b><span>{data.duration} · {data.focus}</span></div>
+          {completed?<span className="done-pill"><Check size={13}/></span>:data.exercises.length?<button className="day-play" onClick={()=>onStartWorkout(data,viewWeek,Number(day))}><Play size={15}/></button>:<span className="rest-badge">Repos</span>}
+        </article>
+      })}
     </section>
-    <section className="section-block"><div className="section-title"><h2>Bibliothèque</h2><span>{exercises.length} exercices</span></div><div className="exercise-grid">{exercises.map(ex=><details className="exercise-card" key={ex.id}><summary><span className="icon-orb blue"><Zap size={17}/></span><div><b>{ex.name}</b><small>{ex.category} · {ex.difficulty}</small></div><ChevronRight size={18}/></summary><div className="exercise-detail"><h4>Comment faire</h4><ol>{(ex.instructions||[]).map((x,i)=><li key={i}>{x}</li>)}</ol>{ex.safety_notes?.length>0&&<div className="safety"><ShieldCheck size={17}/><div><b>À retenir</b>{ex.safety_notes.map((x,i)=><p key={i}>{x}</p>)}</div></div>}</div></details>)}</div></section>
+
+    <section className="section-block"><div className="section-title"><div><p className="eyebrow">BIBLIOTHÈQUE</p><h2>Exercices</h2></div><span>{exercises.length}</span></div><div className="exercise-grid">{exercises.map(ex=><details className="exercise-card" key={ex.id}><summary><span className="icon-orb blue"><Zap size={17}/></span><div><b>{ex.name}</b><small>{ex.category} · {ex.difficulty}</small></div><ChevronRight size={18}/></summary><div className="exercise-detail"><h4>Comment faire</h4><ol>{(ex.instructions||[]).map((x,i)=><li key={i}>{x}</li>)}</ol>{ex.safety_notes?.length>0&&<div className="safety"><ShieldCheck size={17}/><div><b>Sécurité</b>{ex.safety_notes.map((x,i)=><p key={i}>{x}</p>)}</div></div>}</div></details>)}</div></section>
   </>
 }
 
 function NutritionScreen({ profile, waterMl, meals, onWater, onAddMeal }) {
-  const [meal, setMeal] = useState({ meal_type:'lunch', title:'' })
-  const target = profile?.water_target_ml || 2000
-  const submit = (e) => { e.preventDefault(); if (!meal.title.trim()) return; onAddMeal(meal).then(()=>setMeal({...meal,title:''})) }
+  const [meal,setMeal]=useState({meal_type:'lunch',title:''})
+  const target=profile?.water_target_ml||2000
+  const percent=clamp(Math.round(waterMl/target*100),0,100)
+  const submit=async(e)=>{e.preventDefault();if(!meal.title.trim())return;await onAddMeal(meal);setMeal({...meal,title:''})}
+
   return <>
-    <header className="screen-header"><div><p className="eyebrow">ALIMENTATION & EAU</p><h1>Nutrition</h1><p className="muted">On suit tes habitudes sans te compliquer la journée.</p></div><span className="big-icon"><Apple/></span></header>
-    <section className="hydration-banner"><div><Droplets size={28}/><p>Hydratation aujourd’hui</p><h2>{waterMl} ml <small>/ {target} ml</small></h2></div><div className="water-actions"><button onClick={()=>onWater(250)}>+250 ml</button><button onClick={()=>onWater(500)}>+500 ml</button></div></section>
-    <section className="section-block"><div className="section-title"><h2>Repas du jour</h2><span>{meals.length}/4 notés</span></div><div className="meal-timeline">{mealMoments.map(m=>{const found=meals.find(x=>x.meal_type===m.key);return <div className={`meal-row ${found?'done':''}`} key={m.key}><span className="meal-time">{m.time}</span><span className="meal-check">{found?<Check size={16}/>:<Utensils size={16}/>}</span><div><b>{m.label}</b><p>{found ? found.title || 'Repas enregistré' : 'À enregistrer'}</p></div></div>})}</div></section>
-    <section className="section-block"><div className="section-title"><h2>Ajouter un repas</h2><Plus size={20}/></div><form className="quick-form" onSubmit={submit}><select value={meal.meal_type} onChange={e=>setMeal({...meal,meal_type:e.target.value})}>{mealMoments.map(m=><option value={m.key} key={m.key}>{m.label}</option>)}</select><input value={meal.title} onChange={e=>setMeal({...meal,title:e.target.value})} placeholder="Ex. riz, poulet, légumes"/><button className="primary-button small">Enregistrer</button></form></section>
-    <section className="coach-message nutrition-tip"><img src="/coach.svg" alt="Coach"/><p>Pour construire du muscle, cherche surtout la régularité : une source de protéines à plusieurs repas, des féculents selon ta faim et ton activité, des fruits/légumes et assez d’eau. Pas besoin de manger “parfait”.</p></section>
+    <header className="screen-header"><div><p className="eyebrow">ALIMENTATION & EAU</p><h1>Nutrition</h1><p className="muted">Simple, régulier, adapté à ton quotidien.</p></div><span className="big-icon"><Apple/></span></header>
+
+    <section className="hydration-banner">
+      <div><Droplets size={28}/><p>Hydratation aujourd’hui</p><h2>{waterMl} ml <small>/ {target} ml</small></h2><div className="water-progress"><i style={{width:`${percent}%`}}/></div></div>
+      <div className="water-actions"><button onClick={()=>onWater(250)}>+250</button><button onClick={()=>onWater(500)}>+500</button></div>
+    </section>
+
+    <section className="section-block"><div className="section-title"><h2>Repas du jour</h2><span>{meals.length}/4</span></div><div className="meal-timeline">{mealMoments.map(m=>{const found=meals.find(x=>x.meal_type===m.key);return <div className={`meal-row ${found?'done':''}`} key={m.key}><span className="meal-time">{m.time}</span><span className="meal-check">{found?<Check size={16}/>:<Utensils size={16}/>}</span><div><b>{m.label}</b><p>{found?found.title||'Repas enregistré':'À noter'}</p></div></div>})}</div></section>
+
+    <section className="section-block"><div className="section-title"><h2>Ajouter un repas</h2><Plus size={20}/></div><form className="quick-form" onSubmit={submit}><select value={meal.meal_type} onChange={e=>setMeal({...meal,meal_type:e.target.value})}>{mealMoments.map(m=><option value={m.key} key={m.key}>{m.label}</option>)}</select><input value={meal.title} onChange={e=>setMeal({...meal,title:e.target.value})} placeholder="Ex. riz, poulet, haricots, légumes"/><button className="primary-button small">Enregistrer</button></form></section>
+
+    <section className="nutrition-guide"><div><span className="icon-orb blue"><Target size={18}/></span><b>Repère simple</b></div><p>À plusieurs repas : une source de protéines, des féculents selon ta faim et ton activité, des fruits/légumes et de l’eau. Pour voir les abdos, la régularité alimentaire compte autant que les exercices.</p></section>
   </>
 }
 
-function ProgressScreen({ latest, sessions, onAddMeasurement }) {
+function MiniLineChart({ history, field, label, unit='cm' }) {
+  const points=history.map(x=>Number(x[field])).filter(v=>Number.isFinite(v)&&v>0)
+  if(points.length<2) return <div className="chart-empty">Ajoute au moins 2 mesures pour voir la courbe.</div>
+  const min=Math.min(...points), max=Math.max(...points), range=Math.max(1,max-min)
+  const coords=points.map((v,i)=>`${(i/(points.length-1))*100},${92-((v-min)/range)*72}`).join(' ')
+  return <div className="mini-chart"><div><b>{label}</b><span>{points.at(-1)} {unit}</span></div><svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points={coords}/></svg></div>
+}
+
+function ProgressScreen({ latest, measurementHistory, sessions, onAddMeasurement }) {
   const [open,setOpen]=useState(false)
-  const [m,setM]=useState({weight_kg:'',neck_cm:'',forearm_left_cm:'',forearm_right_cm:'',chest_cm:'',waist_cm:'',pushups_max:'',plank_seconds:'',jump_rope_seconds:''})
+  const [m,setM]=useState({weight_kg:'',neck_cm:'',forearm_left_cm:'',forearm_right_cm:'',wrist_left_cm:'',wrist_right_cm:'',chest_cm:'',waist_cm:'',pushups_max:'',plank_seconds:'',jump_rope_seconds:''})
   const save=async(e)=>{e.preventDefault();await onAddMeasurement(m);setOpen(false)}
+  const completedThisWeek=sessions.filter(s=>Date.now()-new Date(s.started_at).getTime()<7*86400000).length
+
   return <>
-    <header className="screen-header"><div><p className="eyebrow">TRANSFORMATION</p><h1>Mes progrès</h1><p className="muted">Mensurations, performances et régularité.</p></div><span className="big-icon"><Activity/></span></header>
-    <section className="progress-hero"><div><p>Séances enregistrées</p><strong>{sessions.length}</strong></div><div><p>Dernier tour de cou</p><strong>{latest?.neck_cm ? `${latest.neck_cm} cm` : '—'}</strong></div><div><p>Avant-bras droit</p><strong>{latest?.forearm_right_cm ? `${latest.forearm_right_cm} cm` : '—'}</strong></div></section>
-    <section className="section-block"><div className="section-title"><h2>Dernières mesures</h2><button className="text-button" onClick={()=>setOpen(true)}><Plus size={16}/> Ajouter</button></div><div className="measure-grid"><StatPill icon={Weight} label="Poids" value={latest?.weight_kg?`${latest.weight_kg} kg`:'—'}/><StatPill icon={Target} label="Poitrine" value={latest?.chest_cm?`${latest.chest_cm} cm`:'—'}/><StatPill icon={Flame} label="Pompes max" value={latest?.pushups_max||'—'}/><StatPill icon={Clock3} label="Planche" value={latest?.plank_seconds?`${latest.plank_seconds}s`:'—'}/></div></section>
-    <section className="section-block"><div className="section-title"><h2>Historique récent</h2><CalendarDays size={20}/></div>{sessions.length ? <div className="session-list">{sessions.slice(0,6).map(s=><div className="session-row" key={s.id}><span className="icon-orb blue"><Check size={16}/></span><div><b>{s.title}</b><p>{new Date(s.started_at).toLocaleDateString('fr-FR')}</p></div><span>{s.duration_seconds?`${Math.round(s.duration_seconds/60)} min`:'Terminé'}</span></div>)}</div> : <div className="empty-state">Ta première séance terminée apparaîtra ici.</div>}</section>
-    {open&&<div className="modal-backdrop"><form className="modal measurement-modal" onSubmit={save}><div className="modal-head"><div><p className="eyebrow">NOUVELLE MESURE</p><h2>Point de progression</h2></div><button type="button" className="icon-button" onClick={()=>setOpen(false)}><X/></button></div><div className="split"><label>Poids kg<input inputMode="decimal" value={m.weight_kg} onChange={e=>setM({...m,weight_kg:e.target.value})}/></label><label>Cou cm<input inputMode="decimal" value={m.neck_cm} onChange={e=>setM({...m,neck_cm:e.target.value})}/></label></div><div className="split"><label>Avant-bras G<input inputMode="decimal" value={m.forearm_left_cm} onChange={e=>setM({...m,forearm_left_cm:e.target.value})}/></label><label>Avant-bras D<input inputMode="decimal" value={m.forearm_right_cm} onChange={e=>setM({...m,forearm_right_cm:e.target.value})}/></label></div><div className="split"><label>Poitrine cm<input inputMode="decimal" value={m.chest_cm} onChange={e=>setM({...m,chest_cm:e.target.value})}/></label><label>Taille cm<input inputMode="decimal" value={m.waist_cm} onChange={e=>setM({...m,waist_cm:e.target.value})}/></label></div><div className="split"><label>Pompes max<input inputMode="numeric" value={m.pushups_max} onChange={e=>setM({...m,pushups_max:e.target.value})}/></label><label>Planche sec<input inputMode="numeric" value={m.plank_seconds} onChange={e=>setM({...m,plank_seconds:e.target.value})}/></label></div><button className="primary-button">Enregistrer</button></form></div>}
+    <header className="screen-header"><div><p className="eyebrow">TRANSFORMATION</p><h1>Mes progrès</h1><p className="muted">Mesures réelles, pas de score arbitraire.</p></div><span className="big-icon"><Activity/></span></header>
+
+    <section className="progress-hero"><div><p>Séances 7 jours</p><strong>{completedThisWeek}</strong></div><div><p>Tour de cou</p><strong>{latest?.neck_cm?`${latest.neck_cm} cm`:'—'}</strong></div><div><p>Avant-bras D</p><strong>{latest?.forearm_right_cm?`${latest.forearm_right_cm} cm`:'—'}</strong></div></section>
+
+    <section className="section-block"><div className="section-title"><h2>Évolution</h2><button className="text-button" onClick={()=>setOpen(true)}><Plus size={16}/> Nouvelle mesure</button></div><div className="chart-grid"><MiniLineChart history={measurementHistory} field="neck_cm" label="Cou"/><MiniLineChart history={measurementHistory} field="forearm_right_cm" label="Avant-bras droit"/></div></section>
+
+    <section className="section-block"><div className="section-title"><h2>Dernier point</h2><Trophy size={20}/></div><div className="measure-grid"><StatPill icon={Weight} label="Poids" value={latest?.weight_kg?`${latest.weight_kg} kg`:'—'}/><StatPill icon={Target} label="Poitrine" value={latest?.chest_cm?`${latest.chest_cm} cm`:'—'}/><StatPill icon={Flame} label="Pompes max" value={latest?.pushups_max||'—'}/><StatPill icon={Clock3} label="Planche" value={latest?.plank_seconds?`${latest.plank_seconds}s`:'—'}/></div></section>
+
+    <section className="section-block"><div className="section-title"><h2>Historique séances</h2><CalendarDays size={20}/></div>{sessions.length?<div className="session-list">{sessions.slice(0,10).map(s=><div className="session-row" key={s.id}><span className="icon-orb blue"><Check size={16}/></span><div><b>{s.title}</b><p>{new Date(s.started_at).toLocaleDateString('fr-FR')} · Semaine {s.program_week||'—'}</p></div><span>{s.duration_seconds?`${Math.round(s.duration_seconds/60)} min`:'Terminé'}</span></div>)}</div>:<div className="empty-state">Ta première séance terminée apparaîtra ici.</div>}</section>
+
+    {open&&<div className="modal-backdrop"><form className="modal measurement-modal" onSubmit={save}><div className="modal-head"><div><p className="eyebrow">NOUVEAU POINT</p><h2>Mesures & performances</h2></div><button type="button" className="icon-button" onClick={()=>setOpen(false)}><X/></button></div>
+      <div className="split"><label>Poids kg<input inputMode="decimal" value={m.weight_kg} onChange={e=>setM({...m,weight_kg:e.target.value})}/></label><label>Cou cm<input inputMode="decimal" value={m.neck_cm} onChange={e=>setM({...m,neck_cm:e.target.value})}/></label></div>
+      <div className="split"><label>Avant-bras G<input inputMode="decimal" value={m.forearm_left_cm} onChange={e=>setM({...m,forearm_left_cm:e.target.value})}/></label><label>Avant-bras D<input inputMode="decimal" value={m.forearm_right_cm} onChange={e=>setM({...m,forearm_right_cm:e.target.value})}/></label></div>
+      <div className="split"><label>Poignet G<input inputMode="decimal" value={m.wrist_left_cm} onChange={e=>setM({...m,wrist_left_cm:e.target.value})}/></label><label>Poignet D<input inputMode="decimal" value={m.wrist_right_cm} onChange={e=>setM({...m,wrist_right_cm:e.target.value})}/></label></div>
+      <div className="split"><label>Poitrine cm<input inputMode="decimal" value={m.chest_cm} onChange={e=>setM({...m,chest_cm:e.target.value})}/></label><label>Taille cm<input inputMode="decimal" value={m.waist_cm} onChange={e=>setM({...m,waist_cm:e.target.value})}/></label></div>
+      <div className="split"><label>Pompes max<input inputMode="numeric" value={m.pushups_max} onChange={e=>setM({...m,pushups_max:e.target.value})}/></label><label>Planche sec<input inputMode="numeric" value={m.plank_seconds} onChange={e=>setM({...m,plank_seconds:e.target.value})}/></label></div>
+      <button className="primary-button">Enregistrer</button>
+    </form></div>}
   </>
 }
 
-function ProfileScreen({ profile, reminders, sleepLog, onSaveProfile, onSaveReminder, onSaveRecovery, onLogout }) {
+function ProfileScreen({ profile, reminders, sleepLog, pushState, onEnablePush, onSaveProfile, onSaveReminder, onSaveRecovery, onLogout }) {
   const [draft,setDraft]=useState(profile)
-  const [recovery,setRecovery]=useState({
-    quality:sleepLog?.quality||0,
-    fatigue:sleepLog?.fatigue||0,
-    soreness:sleepLog?.soreness||0,
-  })
-  const [notificationState,setNotificationState]=useState(typeof Notification!=='undefined'?Notification.permission:'unsupported')
-  const [notificationMessage,setNotificationMessage]=useState('')
+  const [recovery,setRecovery]=useState({quality:sleepLog?.quality||0,fatigue:sleepLog?.fatigue||0,soreness:sleepLog?.soreness||0})
   useEffect(()=>setDraft(profile),[profile])
   useEffect(()=>setRecovery({quality:sleepLog?.quality||0,fatigue:sleepLog?.fatigue||0,soreness:sleepLog?.soreness||0}),[sleepLog])
-  useEffect(()=>{
-    let active=true
-    getOneFitnessPushState().then(state=>{if(active)setNotificationState(state)}).catch(()=>{})
-    return()=>{active=false}
-  },[])
-
-  const requestNotifications=async()=>{
-    try {
-      setNotificationMessage('Activation…')
-      const result=await enableOneFitnessPush()
-      setNotificationState(result.state)
-      setNotificationMessage(result.message||'')
-    } catch (error) {
-      setNotificationMessage(error?.message || 'Impossible d’activer les notifications.')
-    }
-  }
 
   const defaults=[
     {kind:'workout',title:'Séance One Fitness',body:'C’est l’heure de ta séance.',time_local:profile?.preferred_workout_time?.slice?.(0,5)||'18:30',target_path:'/?tab=workout'},
@@ -253,131 +325,237 @@ function ProfileScreen({ profile, reminders, sleepLog, onSaveProfile, onSaveRemi
     {kind:'dinner',title:'Dîner',body:'C’est l’heure de ton dîner.',time_local:'20:30',target_path:'/?tab=nutrition'},
     {kind:'sleep',title:'Récupération',body:'Prépare ton sommeil pour mieux récupérer.',time_local:'22:30',target_path:'/?tab=profile'},
   ]
-  const equipmentOptions=[
-    ['hand_gripper','Hand gripper'],
-    ['jump_rope','Corde à sauter'],
-    ['dumbbells','Haltères'],
-    ['resistance_bands','Élastiques'],
-    ['pull_up_bar','Barre de traction'],
-  ]
-  const saveDraft=()=>onSaveProfile(draft)
-  const toggleEquipment=(key)=>{
-    const current=draft?.equipment||[]
-    const next=current.includes(key)?current.filter(x=>x!==key):[...current,key]
-    setDraft({...draft,equipment:next})
-  }
-  const reminderIcon=(kind)=>{
-    if(kind==='water') return <Droplets size={16}/>
-    if(['breakfast','lunch','snack','dinner'].includes(kind)) return <Utensils size={16}/>
-    if(kind==='sleep') return <Moon size={16}/>
-    return <Dumbbell size={16}/>
-  }
-  const reminderTime=(item)=>{
-    if(item.repeat_every_minutes) return `Toutes les ${Math.round(item.repeat_every_minutes/60)} h · ${String(item.window_start||item.time_local).slice(0,5)}–${String(item.window_end||'22:30').slice(0,5)}`
-    return String(item.time_local).slice(0,5)
-  }
-  const ratingLabels={quality:['','Très mauvais','Mauvais','Moyen','Bien','Très bien'],fatigue:['','Très faible','Faible','Moyenne','Forte','Très forte'],soreness:['','Aucune','Légère','Moyenne','Forte','Très forte']}
+  const equipmentOptions=[['hand_gripper','Hand gripper'],['jump_rope','Corde à sauter'],['dumbbells','Haltères'],['resistance_bands','Élastiques'],['pull_up_bar','Barre de traction']]
+  const toggleEquipment=key=>{const current=draft?.equipment||[];setDraft({...draft,equipment:current.includes(key)?current.filter(x=>x!==key):[...current,key]})}
 
   return <>
-    <header className="screen-header"><div><p className="eyebrow">TON ESPACE</p><h1>Profil & rappels</h1><p className="muted">Tes réglages One Fitness uniquement.</p></div><span className="big-icon"><Settings/></span></header>
-    <section className="profile-card"><img src="/coach.svg" alt="Coach One Fitness"/><div><p className="eyebrow">OBJECTIF</p><h2>Meilleure silhouette</h2><p>Cou · avant-bras · poignets · pecs · abdos · cardio</p></div></section>
+    <header className="screen-header"><div><p className="eyebrow">TON ESPACE</p><h1>Moi</h1><p className="muted">Profil, récupération et rappels.</p></div><span className="big-icon"><Settings/></span></header>
 
-    <section className="section-block"><div className="section-title"><h2>Mon profil</h2><UserRound size={20}/></div><div className="grid-form"><label>Nom affiché<input value={draft?.display_name||''} onChange={e=>setDraft({...draft,display_name:e.target.value})}/></label><div className="split"><label>Poids kg<input value={draft?.weight_kg||''} onChange={e=>setDraft({...draft,weight_kg:e.target.value})}/></label><label>Taille cm<input value={draft?.height_cm||''} onChange={e=>setDraft({...draft,height_cm:e.target.value})}/></label></div><label>Heure d’entraînement<input type="time" value={draft?.preferred_workout_time?.slice?.(0,5)||'18:30'} onChange={e=>setDraft({...draft,preferred_workout_time:e.target.value})}/></label><label>Objectif eau ml<input inputMode="numeric" value={draft?.water_target_ml||2000} onChange={e=>setDraft({...draft,water_target_ml:e.target.value})}/></label><button className="primary-button small" onClick={saveDraft}>Enregistrer</button></div></section>
+    <section className="profile-card"><img src="/coach.svg" alt="Coach One Fitness"/><div><p className="eyebrow">PROGRAMME ACTUEL</p><h2>Semaine {getProgramWeek(profile?.program_started_at)}/6</h2><p>Maison · silhouette · cardio · pecs · abdos · cou · avant-bras</p></div></section>
 
-    <section className="section-block"><div className="section-title"><h2>Mon équipement</h2><Dumbbell size={20}/></div><p className="equipment-help">Coche ce que tu possèdes. Le programme pourra évoluer au fur et à mesure de tes achats.</p><div className="equipment-grid">{equipmentOptions.map(([key,label])=><button type="button" key={key} className={(draft?.equipment||[]).includes(key)?'equipment-chip selected':'equipment-chip'} onClick={()=>toggleEquipment(key)}>{(draft?.equipment||[]).includes(key)?<Check size={15}/>:<Plus size={15}/>} {label}</button>)}</div><button className="primary-button small equipment-save" onClick={saveDraft}>Sauvegarder l’équipement</button></section>
+    <section className="section-block"><div className="section-title"><h2>Notifications</h2><Bell size={20}/></div><button className={`notification-permission ${pushState==='active'?'enabled':''}`} onClick={onEnablePush}><span className="icon-orb blue"><Bell size={17}/></span><div><b>{pushState==='active'?'Notifications activées':'Activer les notifications'}</b><p>Eau, repas, séance et récupération.</p></div><ChevronRight size={18}/></button></section>
 
-    <section className="section-block recovery-card">
-      <div className="section-title"><div><p className="eyebrow">RÉCUPÉRATION</p><h2>Comment tu te sens ?</h2></div><Moon size={20}/></div>
-      {[
-        ['quality','Qualité du sommeil'],
-        ['fatigue','Fatigue aujourd’hui'],
-        ['soreness','Courbatures'],
-      ].map(([key,label])=><div className="rating-row" key={key}><div><b>{label}</b><span>{ratingLabels[key][recovery[key]]||'Non renseigné'}</span></div><div className="rating-scale">{[1,2,3,4,5].map(n=><button type="button" key={n} className={recovery[key]===n?'active':''} onClick={()=>setRecovery({...recovery,[key]:n})}>{n}</button>)}</div></div>)}
-      <button className="primary-button small recovery-save" onClick={()=>onSaveRecovery(recovery)}>Enregistrer ma récupération</button>
-    </section>
+    <section className="section-block"><div className="section-title"><h2>Mon profil</h2><UserRound size={20}/></div><div className="grid-form"><label>Nom affiché<input value={draft?.display_name||''} onChange={e=>setDraft({...draft,display_name:e.target.value})}/></label><div className="split"><label>Poids kg<input value={draft?.weight_kg||''} onChange={e=>setDraft({...draft,weight_kg:e.target.value})}/></label><label>Taille cm<input value={draft?.height_cm||''} onChange={e=>setDraft({...draft,height_cm:e.target.value})}/></label></div><div className="split"><label>Heure séance<input type="time" value={draft?.preferred_workout_time?.slice?.(0,5)||'18:30'} onChange={e=>setDraft({...draft,preferred_workout_time:e.target.value})}/></label><label>Objectif eau<input inputMode="numeric" value={draft?.water_target_ml||2000} onChange={e=>setDraft({...draft,water_target_ml:e.target.value})}/></label></div><button className="primary-button small" onClick={()=>onSaveProfile(draft)}>Enregistrer</button></div></section>
 
-    <section className="section-block">
-      <div className="section-title"><h2>Rappels</h2><Bell size={20}/></div>
-      <button className="notification-permission" onClick={requestNotifications}>
-        <span className="icon-orb blue"><Bell size={17}/></span>
-        <div><b>Notifications de l’app</b><p>État : {notificationState==='active'?'activées':notificationState}</p>{notificationMessage&&<p>{notificationMessage}</p>}</div>
-        <ChevronRight size={18}/>
-      </button>
-      <div className="reminder-list">{defaults.map(d=>{
-        const saved=reminders.find(r=>r.kind===d.kind)
-        const item=saved||d
-        return <div className="reminder-row" key={d.kind}>
-          <span className="icon-orb dark">{reminderIcon(d.kind)}</span>
-          <div><b>{item.title}</b><p>{reminderTime(item)}</p></div>
-          <button className={saved?.enabled===false?'toggle':'toggle on'} onClick={()=>onSaveReminder({...item,kind:d.kind,enabled:saved? !saved.enabled:true})}><i/></button>
-        </div>
-      })}</div>
-      <p className="fine-print">Sur iPhone, ajoute One Fitness à l’écran d’accueil puis autorise les notifications. Les rappels sont isolés dans les tables One Fitness et peuvent fonctionner même lorsque la web-app est fermée une fois le push activé.</p>
-    </section>
+    <section className="section-block"><div className="section-title"><h2>Équipement</h2><Dumbbell size={20}/></div><div className="equipment-grid">{equipmentOptions.map(([key,label])=><button type="button" key={key} className={(draft?.equipment||[]).includes(key)?'equipment-chip selected':'equipment-chip'} onClick={()=>toggleEquipment(key)}>{(draft?.equipment||[]).includes(key)?<Check size={15}/>:<Plus size={15}/>} {label}</button>)}</div><button className="primary-button small equipment-save" onClick={()=>onSaveProfile(draft)}>Sauvegarder</button></section>
+
+    <section className="section-block recovery-card"><div className="section-title"><div><p className="eyebrow">RÉCUPÉRATION</p><h2>Comment tu te sens ?</h2></div><Moon size={20}/></div>{[['quality','Sommeil'],['fatigue','Fatigue'],['soreness','Courbatures']].map(([key,label])=><div className="rating-row" key={key}><div><b>{label}</b><span>{recovery[key]||'—'}/5</span></div><div className="rating-scale">{[1,2,3,4,5].map(n=><button type="button" key={n} className={recovery[key]===n?'active':''} onClick={()=>setRecovery({...recovery,[key]:n})}>{n}</button>)}</div></div>)}<button className="primary-button small recovery-save" onClick={()=>onSaveRecovery(recovery)}>Enregistrer</button></section>
+
+    <section className="section-block"><div className="section-title"><h2>Rappels</h2><Clock3 size={20}/></div><div className="reminder-list">{defaults.map(d=>{const saved=reminders.find(r=>r.kind===d.kind);const item=saved||d;return <div className="reminder-row" key={d.kind}><span className="icon-orb dark">{d.kind==='water'?<Droplets size={16}/>:['breakfast','lunch','snack','dinner'].includes(d.kind)?<Utensils size={16}/>:d.kind==='sleep'?<Moon size={16}/>:<Dumbbell size={16}/>}</span><div><b>{item.title}</b><p>{item.repeat_every_minutes?`Toutes les ${Math.round(item.repeat_every_minutes/60)} h`:String(item.time_local).slice(0,5)}</p></div><button className={saved?.enabled===false?'toggle':'toggle on'} onClick={()=>onSaveReminder({...item,kind:d.kind,enabled:saved?!saved.enabled:true})}><i/></button></div>})}</div></section>
+
+    <section className="install-card"><Smartphone size={22}/><div><b>Utilise One Fitness comme une vraie app</b><p>Sur iPhone : Partager → Sur l’écran d’accueil. L’app s’ouvrira sans la barre Safari.</p></div></section>
     <button className="logout-button" onClick={onLogout}><LogOut size={18}/> Se déconnecter</button>
   </>
 }
 
-function WorkoutModal({ workout, exercises, user, onClose, onComplete }) {
-  const bySlug=Object.fromEntries(exercises.map(e=>[e.slug,e]))
-  const [index,setIndex]=useState(0); const [setNo,setSetNo]=useState(1); const [done,setDone]=useState([]); const [timer,setTimer]=useState(null)
-  const item=workout.exercises[index]; const ex=bySlug[item?.slug]
-  useEffect(()=>{ if(timer===0) setTimer(null); if(timer>0){const t=setTimeout(()=>setTimer(timer-1),1000);return()=>clearTimeout(t)} },[timer])
-  if(!item||!ex) return <div className="modal-backdrop"><div className="modal"><button className="icon-button" onClick={onClose}><X/></button><p>Exercice indisponible.</p></div></div>
-  const total=item.sets; const target=item.reps?`${item.reps} répétitions${item.eachSide?' / côté':''}`:`${item.seconds}s${item.eachSide?' / côté':''}`
-  const completeSet=()=>{const next=[...done,{exercise:ex,set_number:setNo,reps:item.reps||null,seconds:item.seconds||null}];setDone(next);if(setNo<total){setSetNo(setNo+1);setTimer(item.rest||45)}else if(index<workout.exercises.length-1){setIndex(index+1);setSetNo(1);setTimer(item.rest||45)}else onComplete(next)}
-  return <div className="modal-backdrop"><div className="modal workout-modal"><div className="modal-head"><div><p className="eyebrow">EXERCICE {index+1}/{workout.exercises.length}</p><h2>{ex.name}</h2></div><button className="icon-button" onClick={onClose}><X/></button></div><div className="set-ring"><span>{setNo}/{total}</span><small>séries</small></div><h3>{target}</h3>{timer!==null?<div className="rest-timer"><p>Repos</p><strong>00:{String(timer).padStart(2,'0')}</strong><button onClick={()=>setTimer(null)}>Passer</button></div>:<button className="primary-button" onClick={completeSet}><Check size={18}/> Série terminée</button>}<div className="howto"><h4>Comment faire</h4><ol>{ex.instructions.map((x,i)=><li key={i}>{x}</li>)}</ol>{ex.safety_notes?.length>0&&<div className="safety"><ShieldCheck size={17}/><div>{ex.safety_notes.map((x,i)=><p key={i}>{x}</p>)}</div></div>}</div></div></div>
+function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
+  const bySlug=useMemo(()=>Object.fromEntries(exercises.map(e=>[e.slug,e])),[exercises])
+  const [exerciseIndex,setExerciseIndex]=useState(0)
+  const [setNo,setSetNo]=useState(1)
+  const [phase,setPhase]=useState('work')
+  const [running,setRunning]=useState(false)
+  const [secondsLeft,setSecondsLeft]=useState(0)
+  const [pending,setPending]=useState(null)
+  const [done,setDone]=useState([])
+  const [elapsed,setElapsed]=useState(0)
+  const startedAt=useRef(Date.now())
+
+  const item=workout.exercises[exerciseIndex]
+  const exercise=bySlug[item?.slug]
+  const isTimed=Boolean(item?.seconds)
+
+  useEffect(()=>{
+    const timer=setInterval(()=>setElapsed(Math.floor((Date.now()-startedAt.current)/1000)),1000)
+    return()=>clearInterval(timer)
+  },[])
+
+  useEffect(()=>{
+    if(phase==='work'){
+      setSecondsLeft(item?.seconds||0)
+      setRunning(false)
+    }
+  },[exerciseIndex,setNo,phase,item?.seconds])
+
+  useEffect(()=>{
+    if(!running||secondsLeft<=0)return
+    const t=setTimeout(()=>setSecondsLeft(s=>Math.max(0,s-1)),1000)
+    return()=>clearTimeout(t)
+  },[running,secondsLeft])
+
+  useEffect(()=>{
+    if(phase==='rest'&&secondsLeft===0&&pending){
+      if(pending==='set') setSetNo(n=>n+1)
+      if(pending==='exercise'){setExerciseIndex(i=>i+1);setSetNo(1)}
+      setPending(null)
+      setPhase('work')
+      setRunning(false)
+      navigator.vibrate?.(60)
+    }
+  },[phase,secondsLeft,pending])
+
+  if(!item||!exercise) return <div className="session-screen"><div className="session-error">Exercice indisponible.<button onClick={onClose}>Fermer</button></div></div>
+
+  const totalSets=item.sets
+  const completeSet=()=>{
+    const entry={exercise,set_number:setNo,reps:item.reps||null,seconds:item.seconds||null}
+    const next=[...done,entry]
+    setDone(next)
+    navigator.vibrate?.(35)
+    const lastSet=setNo>=totalSets
+    const lastExercise=exerciseIndex>=workout.exercises.length-1
+    if(lastSet&&lastExercise){onComplete(next,elapsed,week,day);return}
+    setPending(lastSet?'exercise':'set')
+    setPhase('rest')
+    setSecondsLeft(item.rest||45)
+    setRunning(true)
+  }
+
+  const skipRest=()=>setSecondsLeft(0)
+  const completedUnits=done.length
+  const totalUnits=workout.exercises.reduce((sum,x)=>sum+x.sets,0)
+  const sessionProgress=clamp(Math.round(completedUnits/Math.max(1,totalUnits)*100),0,100)
+
+  return <div className="session-screen">
+    <header className="session-header"><button className="session-close" onClick={onClose}><X size={20}/></button><div><span>SESSION</span><b>{formatSeconds(elapsed)}</b></div><div><span>PROGRÈS</span><b>{sessionProgress}%</b></div></header>
+    <div className="session-progress"><i style={{width:`${sessionProgress}%`}}/></div>
+
+    <main className="session-main">
+      <div className="session-meta"><span>Exercice {exerciseIndex+1}/{workout.exercises.length}</span><span>Série {setNo}/{totalSets}</span></div>
+      <div className="session-exercise-icon"><Zap size={38}/></div>
+      <p className="eyebrow">{exercise.category}</p>
+      <h1>{exercise.name}</h1>
+      <p className="session-target">{item.eachSide?'Chaque côté · ':''}{item.reps?`${item.reps} répétitions`:`${item.seconds} secondes`}</p>
+
+      {phase==='work' ? <>
+        {isTimed ? <div className="work-timer">
+          <strong>{formatSeconds(secondsLeft)}</strong>
+          <div className="timer-actions">
+            <button className="timer-play" onClick={()=>setRunning(v=>!v)}>{running?<Pause size={22}/>:<Play size={22}/>} {running?'Pause':'Démarrer'}</button>
+            <button className="timer-done" onClick={completeSet} disabled={secondsLeft>0&&running}><Check size={20}/> Valider</button>
+          </div>
+        </div> : <button className="session-complete" onClick={completeSet}><Check size={22}/> Série terminée</button>}
+      </> : <div className="rest-panel"><span>REPOS</span><strong>{formatSeconds(secondsLeft)}</strong><p>Respire, relâche les muscles et prépare la suite.</p><button onClick={skipRest}>Passer le repos</button></div>}
+
+      <section className="session-howto"><h2>Technique</h2><ol>{(exercise.instructions||[]).slice(0,4).map((x,i)=><li key={i}>{x}</li>)}</ol>{exercise.safety_notes?.length>0&&<div className="session-safety"><ShieldCheck size={18}/><p>{exercise.safety_notes[0]}</p></div>}</section>
+    </main>
+  </div>
 }
 
 export default function App() {
-  const [user,setUser]=useState(null); const [profile,setProfile]=useState(null); const [loading,setLoading]=useState(true); const [tab,setTab]=useState(initialTab)
-  const [exercises,setExercises]=useState([]); const [waterMl,setWaterMl]=useState(0); const [meals,setMeals]=useState([]); const [latest,setLatest]=useState(null); const [sessions,setSessions]=useState([]); const [reminders,setReminders]=useState([]); const [sleepLog,setSleepLog]=useState(null); const [workoutOpen,setWorkoutOpen]=useState(false)
+  const [user,setUser]=useState(null)
+  const [profile,setProfile]=useState(null)
+  const [loading,setLoading]=useState(true)
+  const [tab,setTab]=useState(initialTab)
+  const [exercises,setExercises]=useState([])
+  const [waterMl,setWaterMl]=useState(0)
+  const [meals,setMeals]=useState([])
+  const [latest,setLatest]=useState(null)
+  const [measurementHistory,setMeasurementHistory]=useState([])
+  const [sessions,setSessions]=useState([])
+  const [reminders,setReminders]=useState([])
+  const [sleepLog,setSleepLog]=useState(null)
+  const [pushState,setPushState]=useState('default')
+  const [activeWorkout,setActiveWorkout]=useState(null)
+
+  const changeTab=key=>{
+    setTab(key)
+    const url=new URL(window.location.href)
+    url.searchParams.set('tab',key)
+    history.replaceState({},'',url)
+  }
 
   const loadData=async(currentUser=user)=>{
-    if(!currentUser) return
+    if(!currentUser)return
     const today=startOfTodayISO()
     const [p,e,w,m,meas,s,r,sl]=await Promise.all([
       supabase.from(TABLE.profile).select('*').eq('user_id',currentUser.id).maybeSingle(),
       supabase.from(TABLE.exercises).select('*').order('category').order('name'),
       supabase.from(TABLE.water).select('amount_ml').eq('user_id',currentUser.id).gte('logged_at',today),
       supabase.from(TABLE.meals).select('*').eq('user_id',currentUser.id).gte('logged_at',today).order('logged_at'),
-      supabase.from(TABLE.measurements).select('*').eq('user_id',currentUser.id).order('measured_at',{ascending:false}).limit(1),
-      supabase.from(TABLE.sessions).select('*').eq('user_id',currentUser.id).not('completed_at','is',null).order('started_at',{ascending:false}).limit(20),
+      supabase.from(TABLE.measurements).select('*').eq('user_id',currentUser.id).order('measured_at',{ascending:false}).limit(12),
+      supabase.from(TABLE.sessions).select('*').eq('user_id',currentUser.id).not('completed_at','is',null).order('started_at',{ascending:false}).limit(50),
       supabase.from(TABLE.reminders).select('*').eq('user_id',currentUser.id).order('kind'),
       supabase.from(TABLE.sleep).select('*').eq('user_id',currentUser.id).eq('sleep_date',todayDateKey()).maybeSingle(),
     ])
-    setProfile(p.data||null); setExercises(e.data||[]); setWaterMl((w.data||[]).reduce((a,x)=>a+x.amount_ml,0)); setMeals(m.data||[]); setLatest(meas.data?.[0]||null); setSessions(s.data||[]); setReminders(r.data||[]); setSleepLog(sl.data||null)
+    setProfile(p.data||null)
+    setExercises(e.data||[])
+    setWaterMl((w.data||[]).reduce((a,x)=>a+x.amount_ml,0))
+    setMeals(m.data||[])
+    setMeasurementHistory([...(meas.data||[])].reverse())
+    setLatest(meas.data?.[0]||null)
+    setSessions(s.data||[])
+    setReminders(r.data||[])
+    setSleepLog(sl.data||null)
   }
 
   useEffect(()=>{
     let mounted=true
-    supabase.auth.getUser().then(({data})=>{if(!mounted)return;setUser(data.user||null);if(data.user)loadData(data.user).finally(()=>setLoading(false));else setLoading(false)})
-    const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,session)=>{const u=session?.user||null;setUser(u);if(u)loadData(u);else{setProfile(null);setTab('home')}})
+    supabase.auth.getUser().then(({data})=>{
+      if(!mounted)return
+      const u=data.user||null
+      setUser(u)
+      if(u)loadData(u).finally(()=>setLoading(false))
+      else setLoading(false)
+    })
+    getOneFitnessPushState().then(setPushState).catch(()=>{})
+    const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,session)=>{
+      const u=session?.user||null
+      setUser(u)
+      if(u)loadData(u)
+      else{setProfile(null);setTab('home')}
+    })
     return()=>{mounted=false;subscription.unsubscribe()}
   },[])
 
-  const addWater=async(amount)=>{if(!user)return;const {error}=await supabase.from(TABLE.water).insert({user_id:user.id,amount_ml:amount});if(!error)setWaterMl(v=>v+amount)}
-  const addMeal=async(meal)=>{if(!user)return;const {data,error}=await supabase.from(TABLE.meals).insert({user_id:user.id,...meal}).select().single();if(!error)setMeals(v=>[...v,data])}
-  const addMeasurement=async(raw)=>{if(!user)return;const payload={user_id:user.id};Object.entries(raw).forEach(([k,v])=>{payload[k]=v===''?null:Number(v)});const {data,error}=await supabase.from(TABLE.measurements).insert(payload).select().single();if(!error)setLatest(data)}
-  const saveProfile=async(draft)=>{if(!user)return;const payload={...draft,user_id:user.id,weight_kg:draft.weight_kg?Number(draft.weight_kg):null,height_cm:draft.height_cm?Number(draft.height_cm):null,water_target_ml:Number(draft.water_target_ml)||2000};const {data,error}=await supabase.from(TABLE.profile).upsert(payload).select().single();if(!error)setProfile(data)}
-  const saveReminder=async(item)=>{if(!user)return;const payload={user_id:user.id,kind:item.kind,title:item.title,body:item.body||'',time_local:String(item.time_local).slice(0,5),days_of_week:item.days_of_week||[0,1,2,3,4,5,6],enabled:item.enabled!==false,repeat_every_minutes:item.repeat_every_minutes||null,window_start:item.window_start?String(item.window_start).slice(0,5):null,window_end:item.window_end?String(item.window_end).slice(0,5):null,target_path:item.target_path||'/'};let q=supabase.from(TABLE.reminders);const existing=reminders.find(r=>r.kind===item.kind);const {data,error}=existing?await q.update(payload).eq('id',existing.id).select().single():await q.insert(payload).select().single();if(!error)setReminders(v=>[...v.filter(r=>r.kind!==item.kind),data])}
-  const saveRecovery=async(values)=>{if(!user)return;const payload={user_id:user.id,sleep_date:todayDateKey(),quality:Number(values.quality)||null,fatigue:Number(values.fatigue)||null,soreness:Number(values.soreness)||null};const {data,error}=await supabase.from(TABLE.sleep).upsert(payload,{onConflict:'user_id,sleep_date'}).select().single();if(!error)setSleepLog(data)}
-  const completeWorkout=async(done)=>{if(!user)return;const now=new Date();const {data:session,error}=await supabase.from(TABLE.sessions).insert({user_id:user.id,title:starterWeek[now.getDay()].title,completed_at:now.toISOString(),duration_seconds:null}).select().single();if(!error&&session){const rows=done.map(x=>({session_id:session.id,user_id:user.id,exercise_id:x.exercise.id,set_number:x.set_number,reps:x.reps,seconds:x.seconds,completed:true}));if(rows.length)await supabase.from(TABLE.sets).insert(rows);setSessions(v=>[session,...v])}setWorkoutOpen(false);setTab('progress')}
+  const enablePush=async()=>{
+    const standalone=window.matchMedia?.('(display-mode: standalone)').matches||window.navigator.standalone
+    const isiOS=/iPhone|iPad|iPod/i.test(navigator.userAgent)
+    if(isiOS&&!standalone){
+      alert('Sur iPhone : appuie sur Partager puis « Sur l’écran d’accueil ». Ouvre ensuite One Fitness depuis l’icône et active les notifications.')
+      return
+    }
+    try{const r=await enableOneFitnessPush();setPushState(r.ok?'active':r.state)}catch(e){alert(e?.message||'Impossible d’activer les notifications.')}
+  }
 
-  if(loading) return <main className="loading-screen"><img src="/icon.svg" alt="One Fitness"/><Spinner/></main>
-  if(!user) return <AuthScreen/>
-  if(!profile?.onboarding_complete) return <Onboarding user={user} onDone={p=>{setProfile(p);loadData(user)}}/>
+  const addWater=async amount=>{if(!user)return;const {error}=await supabase.from(TABLE.water).insert({user_id:user.id,amount_ml:amount});if(!error)setWaterMl(v=>v+amount)}
+  const addMeal=async meal=>{if(!user)return;const {data,error}=await supabase.from(TABLE.meals).insert({user_id:user.id,...meal}).select().single();if(!error)setMeals(v=>[...v,data])}
+  const addMeasurement=async raw=>{if(!user)return;const payload={user_id:user.id};Object.entries(raw).forEach(([k,v])=>{payload[k]=v===''?null:Number(v)});const {data,error}=await supabase.from(TABLE.measurements).insert(payload).select().single();if(!error){setLatest(data);setMeasurementHistory(v=>[...v,data].slice(-12))}}
+  const saveProfile=async draft=>{if(!user)return;const payload={...draft,user_id:user.id,weight_kg:draft.weight_kg?Number(draft.weight_kg):null,height_cm:draft.height_cm?Number(draft.height_cm):null,water_target_ml:Number(draft.water_target_ml)||2000};const {data,error}=await supabase.from(TABLE.profile).upsert(payload).select().single();if(!error)setProfile(data)}
+  const saveReminder=async item=>{if(!user)return;const payload={user_id:user.id,kind:item.kind,title:item.title,body:item.body||'',time_local:String(item.time_local).slice(0,5),days_of_week:item.days_of_week||[0,1,2,3,4,5,6],enabled:item.enabled!==false,repeat_every_minutes:item.repeat_every_minutes||null,window_start:item.window_start?String(item.window_start).slice(0,5):null,window_end:item.window_end?String(item.window_end).slice(0,5):null,target_path:item.target_path||'/'};const existing=reminders.find(r=>r.kind===item.kind);const q=supabase.from(TABLE.reminders);const {data,error}=existing?await q.update(payload).eq('id',existing.id).select().single():await q.insert(payload).select().single();if(!error)setReminders(v=>[...v.filter(r=>r.kind!==item.kind),data])}
+  const saveRecovery=async values=>{if(!user)return;const payload={user_id:user.id,sleep_date:todayDateKey(),quality:Number(values.quality)||null,fatigue:Number(values.fatigue)||null,soreness:Number(values.soreness)||null};const {data,error}=await supabase.from(TABLE.sleep).upsert(payload,{onConflict:'user_id,sleep_date'}).select().single();if(!error)setSleepLog(data)}
+  const completeWorkout=async(done,elapsed,week,day)=>{
+    if(!user)return
+    const now=new Date()
+    const started=new Date(now.getTime()-elapsed*1000)
+    const workout=activeWorkout.workout
+    const {data:session,error}=await supabase.from(TABLE.sessions).insert({
+      user_id:user.id,title:workout.title,started_at:started.toISOString(),completed_at:now.toISOString(),
+      duration_seconds:elapsed,program_week:week,program_day:day,completion_percent:100,
+    }).select().single()
+    if(!error&&session){
+      const rows=done.map(x=>({session_id:session.id,user_id:user.id,exercise_id:x.exercise.id,set_number:x.set_number,reps:x.reps,seconds:x.seconds,completed:true}))
+      if(rows.length)await supabase.from(TABLE.sets).insert(rows)
+      setSessions(v=>[session,...v])
+    }
+    setActiveWorkout(null)
+    changeTab('progress')
+  }
 
-  const today=starterWeek[new Date().getDay()]
+  if(loading)return <main className="loading-screen"><img src="/icon.svg" alt="One Fitness"/><Spinner/></main>
+  if(!user)return <AuthScreen/>
+  if(!profile?.onboarding_complete)return <Onboarding user={user} onDone={p=>{setProfile(p);loadData(user)}}/>
+
+  const {week,day,workout}=getTodayWorkout(profile.program_started_at)
+
   return <div className="app-shell"><main className="mobile-app">
     <div className="content-scroll">
-      {tab==='home'&&<HomeScreen profile={profile} exercises={exercises} waterMl={waterMl} meals={meals} sessions={sessions} sleepLog={sleepLog} onWater={addWater} onStart={()=>setWorkoutOpen(true)} onTab={setTab}/>}
-      {tab==='workout'&&<WorkoutScreen exercises={exercises} onStart={()=>setWorkoutOpen(true)}/>}
+      {tab==='home'&&<HomeScreen profile={profile} waterMl={waterMl} meals={meals} sessions={sessions} sleepLog={sleepLog} pushState={pushState} onEnablePush={enablePush} onWater={addWater} onStart={()=>setActiveWorkout({workout,week,day})} onTab={changeTab}/>}
+      {tab==='workout'&&<WorkoutScreen profile={profile} exercises={exercises} sessions={sessions} onStartWorkout={(w,wk,d)=>setActiveWorkout({workout:w,week:wk,day:d})}/>}
       {tab==='nutrition'&&<NutritionScreen profile={profile} waterMl={waterMl} meals={meals} onWater={addWater} onAddMeal={addMeal}/>}
-      {tab==='progress'&&<ProgressScreen latest={latest} sessions={sessions} onAddMeasurement={addMeasurement}/>}
-      {tab==='profile'&&<ProfileScreen profile={profile} reminders={reminders} sleepLog={sleepLog} onSaveProfile={saveProfile} onSaveReminder={saveReminder} onSaveRecovery={saveRecovery} onLogout={()=>supabase.auth.signOut()}/>}
+      {tab==='progress'&&<ProgressScreen latest={latest} measurementHistory={measurementHistory} sessions={sessions} onAddMeasurement={addMeasurement}/>}
+      {tab==='profile'&&<ProfileScreen profile={profile} reminders={reminders} sleepLog={sleepLog} pushState={pushState} onEnablePush={enablePush} onSaveProfile={saveProfile} onSaveReminder={saveReminder} onSaveRecovery={saveRecovery} onLogout={()=>supabase.auth.signOut()}/>}
     </div>
-    <nav className="bottom-nav">{tabs.map(([key,Icon,label])=><button key={key} className={tab===key?'active':''} onClick={()=>setTab(key)}><Icon size={21}/><span>{label}</span></button>)}</nav>
-    {workoutOpen&&today.exercises.length>0&&<WorkoutModal workout={today} exercises={exercises} user={user} onClose={()=>setWorkoutOpen(false)} onComplete={completeWorkout}/>}
+    <nav className="bottom-nav">{tabs.map(([key,Icon,label])=><button key={key} className={tab===key?'active':''} onClick={()=>changeTab(key)}><Icon size={21}/><span>{label}</span></button>)}</nav>
+    {activeWorkout&&<ActiveWorkout workout={activeWorkout.workout} week={activeWorkout.week} day={activeWorkout.day} exercises={exercises} onClose={()=>setActiveWorkout(null)} onComplete={completeWorkout}/>}
   </main></div>
 }
