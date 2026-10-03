@@ -391,7 +391,7 @@ function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
   const [exerciseIndex,setExerciseIndex]=useState(restored?.exerciseIndex??0)
   const [setNo,setSetNo]=useState(restored?.setNo??1)
   const [phase,setPhase]=useState(restored?.phase||'prepare')
-  const [running,setRunning]=useState(Boolean(restored?.running ?? true))
+  const [running,setRunning]=useState(restored?false:true)
   const [secondsLeft,setSecondsLeft]=useState(restored?.secondsLeft??5)
   const [pending,setPending]=useState(restored?.pending||null)
   const [done,setDone]=useState(restored?.done||[])
@@ -400,7 +400,8 @@ function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
   const startedAt=useRef(restored?.startedAt||Date.now())
   const wakeLockRef=useRef(null)
   const timerEndRef=useRef(Date.now()+5000)
-  const autoStartRef=useRef(true)
+  const autoStartRef=useRef(!restored)
+  const restoredInitialRef=useRef(Boolean(restored))
 
   const item=workout.exercises[exerciseIndex]
   const exercise=bySlug[item?.slug]
@@ -448,6 +449,12 @@ function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
 
   useEffect(()=>{
     if(phase==='work'){
+      if(restoredInitialRef.current){
+        restoredInitialRef.current=false
+        setRunning(false)
+        timerEndRef.current=null
+        return
+      }
       const target=item?.seconds||0
       setSecondsLeft(target)
       timerEndRef.current=null
