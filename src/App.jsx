@@ -7,6 +7,7 @@ import {
 import { supabase } from './lib/supabase'
 import { enableOneFitnessPush, getOneFitnessPushState } from './lib/push'
 import { coachAssets, getExerciseGuide } from './assets'
+import { CoachPopup, CompletionScreen, ExerciseGuideImage, SafeImage } from './components/CoachUI'
 import { dayLabels, getProgramMeta, getProgramStats, getProgramWeek, getTodayWorkout, getTomorrowWorkout, getWeekPlan, getWeekStats, getWorkoutForDate, mealMoments } from './starterPlan'
 
 const TABLE = {
