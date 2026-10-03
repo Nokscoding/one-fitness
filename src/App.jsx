@@ -35,6 +35,7 @@ const initialTab = () => {
 
 const formatDate = (date = new Date()) => new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' }).format(date)
 const startOfTodayISO = () => { const d = new Date(); d.setHours(0,0,0,0); return d.toISOString() }
+const todayDateKey = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lubumbashi' }).format(new Date())
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n))
 
 function Brand({ compact = false }) {
@@ -106,7 +107,7 @@ function Onboarding({ user, onDone }) {
 
 function StatPill({ icon: Icon, label, value }) { return <div className="stat-pill"><Icon size={17}/><div><b>{value}</b><span>{label}</span></div></div> }
 
-function HomeScreen({ profile, exercises, waterMl, meals, sessions, onWater, onStart, onTab }) {
+function HomeScreen({ profile, exercises, waterMl, meals, sessions, sleepLog, onWater, onStart, onTab }) {
   const today = starterWeek[new Date().getDay()]
   const target = profile?.water_target_ml || 2000
   const waterPercent = clamp(Math.round((waterMl / target) * 100), 0, 100)
@@ -131,7 +132,7 @@ function HomeScreen({ profile, exercises, waterMl, meals, sessions, onWater, onS
       <article className="metric-card"><div className="metric-head"><span className="icon-orb dark"><Bell size={18}/></span><b>Rappels</b><button onClick={()=>onTab('profile')}>Gérer</button></div><ul className="mini-list"><li><Dumbbell size={15}/> Séance <span>{profile?.preferred_workout_time?.slice?.(0,5) || '18:30'}</span></li><li><Droplets size={15}/> Eau <span>régulier</span></li><li><Moon size={15}/> Récupération <span>soir</span></li></ul></article>
     </section>
 
-    <section className="section-block"><div className="section-title"><div><p className="eyebrow">COACH</p><h2>Conseil du jour</h2></div><Sparkles size={22}/></div><div className="coach-message"><img src="/coach.svg" alt="Coach"/><p>{today.exercises.some(x=>x.slug.includes('neck')) ? 'Pour la nuque : résistance légère et contrôle total. Aucun mouvement brusque. La qualité passe avant la force.' : 'Le plus important aujourd’hui : terminer proprement la séance prévue. On augmente la difficulté seulement quand la technique reste bonne.'}</p></div></section>
+    <section className="section-block"><div className="section-title"><div><p className="eyebrow">COACH</p><h2>Conseil du jour</h2></div><Sparkles size={22}/></div><div className="coach-message"><img src="/coach.svg" alt="Coach"/><p>{sleepLog?.fatigue >= 4 ? 'Tu as signalé beaucoup de fatigue aujourd’hui. Garde la séance plus légère, soigne la technique et privilégie la récupération.' : today.exercises.some(x=>x.slug.includes('neck')) ? 'Pour la nuque : résistance légère et contrôle total. Aucun mouvement brusque. La qualité passe avant la force.' : 'Le plus important aujourd’hui : terminer proprement la séance prévue. On augmente la difficulté seulement quand la technique reste bonne.'}</p></div></section>
   </>
 }
 
@@ -177,11 +178,17 @@ function ProgressScreen({ latest, sessions, onAddMeasurement }) {
   </>
 }
 
-function ProfileScreen({ profile, reminders, onSaveProfile, onSaveReminder, onLogout }) {
+function ProfileScreen({ profile, reminders, sleepLog, onSaveProfile, onSaveReminder, onSaveRecovery, onLogout }) {
   const [draft,setDraft]=useState(profile)
+  const [recovery,setRecovery]=useState({
+    quality:sleepLog?.quality||0,
+    fatigue:sleepLog?.fatigue||0,
+    soreness:sleepLog?.soreness||0,
+  })
   const [notificationState,setNotificationState]=useState(typeof Notification!=='undefined'?Notification.permission:'unsupported')
   const [notificationMessage,setNotificationMessage]=useState('')
   useEffect(()=>setDraft(profile),[profile])
+  useEffect(()=>setRecovery({quality:sleepLog?.quality||0,fatigue:sleepLog?.fatigue||0,soreness:sleepLog?.soreness||0}),[sleepLog])
   useEffect(()=>{
     let active=true
     getOneFitnessPushState().then(state=>{if(active)setNotificationState(state)}).catch(()=>{})
@@ -208,7 +215,19 @@ function ProfileScreen({ profile, reminders, onSaveProfile, onSaveReminder, onLo
     {kind:'dinner',title:'Dîner',body:'C’est l’heure de ton dîner.',time_local:'20:30',target_path:'/?tab=nutrition'},
     {kind:'sleep',title:'Récupération',body:'Prépare ton sommeil pour mieux récupérer.',time_local:'22:30',target_path:'/?tab=profile'},
   ]
+  const equipmentOptions=[
+    ['hand_gripper','Hand gripper'],
+    ['jump_rope','Corde à sauter'],
+    ['dumbbells','Haltères'],
+    ['resistance_bands','Élastiques'],
+    ['pull_up_bar','Barre de traction'],
+  ]
   const saveDraft=()=>onSaveProfile(draft)
+  const toggleEquipment=(key)=>{
+    const current=draft?.equipment||[]
+    const next=current.includes(key)?current.filter(x=>x!==key):[...current,key]
+    setDraft({...draft,equipment:next})
+  }
   const reminderIcon=(kind)=>{
     if(kind==='water') return <Droplets size={16}/>
     if(['breakfast','lunch','snack','dinner'].includes(kind)) return <Utensils size={16}/>
@@ -219,12 +238,26 @@ function ProfileScreen({ profile, reminders, onSaveProfile, onSaveReminder, onLo
     if(item.repeat_every_minutes) return `Toutes les ${Math.round(item.repeat_every_minutes/60)} h · ${String(item.window_start||item.time_local).slice(0,5)}–${String(item.window_end||'22:30').slice(0,5)}`
     return String(item.time_local).slice(0,5)
   }
+  const ratingLabels={quality:['','Très mauvais','Mauvais','Moyen','Bien','Très bien'],fatigue:['','Très faible','Faible','Moyenne','Forte','Très forte'],soreness:['','Aucune','Légère','Moyenne','Forte','Très forte']}
 
   return <>
     <header className="screen-header"><div><p className="eyebrow">TON ESPACE</p><h1>Profil & rappels</h1><p className="muted">Tes réglages One Fitness uniquement.</p></div><span className="big-icon"><Settings/></span></header>
     <section className="profile-card"><img src="/coach.svg" alt="Coach One Fitness"/><div><p className="eyebrow">OBJECTIF</p><h2>Meilleure silhouette</h2><p>Cou · avant-bras · poignets · pecs · abdos · cardio</p></div></section>
+
     <section className="section-block"><div className="section-title"><h2>Mon profil</h2><UserRound size={20}/></div><div className="grid-form"><label>Nom affiché<input value={draft?.display_name||''} onChange={e=>setDraft({...draft,display_name:e.target.value})}/></label><div className="split"><label>Poids kg<input value={draft?.weight_kg||''} onChange={e=>setDraft({...draft,weight_kg:e.target.value})}/></label><label>Taille cm<input value={draft?.height_cm||''} onChange={e=>setDraft({...draft,height_cm:e.target.value})}/></label></div><label>Heure d’entraînement<input type="time" value={draft?.preferred_workout_time?.slice?.(0,5)||'18:30'} onChange={e=>setDraft({...draft,preferred_workout_time:e.target.value})}/></label><label>Objectif eau ml<input inputMode="numeric" value={draft?.water_target_ml||2000} onChange={e=>setDraft({...draft,water_target_ml:e.target.value})}/></label><button className="primary-button small" onClick={saveDraft}>Enregistrer</button></div></section>
-    <section className="section-block"><div className="section-title"><h2>Équipement</h2><Dumbbell size={20}/></div><div className="chip-row"><span className="selected">✓ Hand gripper</span><span className="selected">✓ Corde à sauter</span><span>Poids du corps</span><span className="locked">+ Haltères plus tard</span></div></section>
+
+    <section className="section-block"><div className="section-title"><h2>Mon équipement</h2><Dumbbell size={20}/></div><p className="equipment-help">Coche ce que tu possèdes. Le programme pourra évoluer au fur et à mesure de tes achats.</p><div className="equipment-grid">{equipmentOptions.map(([key,label])=><button type="button" key={key} className={(draft?.equipment||[]).includes(key)?'equipment-chip selected':'equipment-chip'} onClick={()=>toggleEquipment(key)}>{(draft?.equipment||[]).includes(key)?<Check size={15}/>:<Plus size={15}/>} {label}</button>)}</div><button className="primary-button small equipment-save" onClick={saveDraft}>Sauvegarder l’équipement</button></section>
+
+    <section className="section-block recovery-card">
+      <div className="section-title"><div><p className="eyebrow">RÉCUPÉRATION</p><h2>Comment tu te sens ?</h2></div><Moon size={20}/></div>
+      {[
+        ['quality','Qualité du sommeil'],
+        ['fatigue','Fatigue aujourd’hui'],
+        ['soreness','Courbatures'],
+      ].map(([key,label])=><div className="rating-row" key={key}><div><b>{label}</b><span>{ratingLabels[key][recovery[key]]||'Non renseigné'}</span></div><div className="rating-scale">{[1,2,3,4,5].map(n=><button type="button" key={n} className={recovery[key]===n?'active':''} onClick={()=>setRecovery({...recovery,[key]:n})}>{n}</button>)}</div></div>)}
+      <button className="primary-button small recovery-save" onClick={()=>onSaveRecovery(recovery)}>Enregistrer ma récupération</button>
+    </section>
+
     <section className="section-block">
       <div className="section-title"><h2>Rappels</h2><Bell size={20}/></div>
       <button className="notification-permission" onClick={requestNotifications}>
@@ -260,12 +293,12 @@ function WorkoutModal({ workout, exercises, user, onClose, onComplete }) {
 
 export default function App() {
   const [user,setUser]=useState(null); const [profile,setProfile]=useState(null); const [loading,setLoading]=useState(true); const [tab,setTab]=useState(initialTab)
-  const [exercises,setExercises]=useState([]); const [waterMl,setWaterMl]=useState(0); const [meals,setMeals]=useState([]); const [latest,setLatest]=useState(null); const [sessions,setSessions]=useState([]); const [reminders,setReminders]=useState([]); const [workoutOpen,setWorkoutOpen]=useState(false)
+  const [exercises,setExercises]=useState([]); const [waterMl,setWaterMl]=useState(0); const [meals,setMeals]=useState([]); const [latest,setLatest]=useState(null); const [sessions,setSessions]=useState([]); const [reminders,setReminders]=useState([]); const [sleepLog,setSleepLog]=useState(null); const [workoutOpen,setWorkoutOpen]=useState(false)
 
   const loadData=async(currentUser=user)=>{
     if(!currentUser) return
     const today=startOfTodayISO()
-    const [p,e,w,m,meas,s,r]=await Promise.all([
+    const [p,e,w,m,meas,s,r,sl]=await Promise.all([
       supabase.from(TABLE.profile).select('*').eq('user_id',currentUser.id).maybeSingle(),
       supabase.from(TABLE.exercises).select('*').order('category').order('name'),
       supabase.from(TABLE.water).select('amount_ml').eq('user_id',currentUser.id).gte('logged_at',today),
@@ -273,8 +306,9 @@ export default function App() {
       supabase.from(TABLE.measurements).select('*').eq('user_id',currentUser.id).order('measured_at',{ascending:false}).limit(1),
       supabase.from(TABLE.sessions).select('*').eq('user_id',currentUser.id).not('completed_at','is',null).order('started_at',{ascending:false}).limit(20),
       supabase.from(TABLE.reminders).select('*').eq('user_id',currentUser.id).order('kind'),
+      supabase.from(TABLE.sleep).select('*').eq('user_id',currentUser.id).eq('sleep_date',todayDateKey()).maybeSingle(),
     ])
-    setProfile(p.data||null); setExercises(e.data||[]); setWaterMl((w.data||[]).reduce((a,x)=>a+x.amount_ml,0)); setMeals(m.data||[]); setLatest(meas.data?.[0]||null); setSessions(s.data||[]); setReminders(r.data||[])
+    setProfile(p.data||null); setExercises(e.data||[]); setWaterMl((w.data||[]).reduce((a,x)=>a+x.amount_ml,0)); setMeals(m.data||[]); setLatest(meas.data?.[0]||null); setSessions(s.data||[]); setReminders(r.data||[]); setSleepLog(sl.data||null)
   }
 
   useEffect(()=>{
@@ -289,6 +323,7 @@ export default function App() {
   const addMeasurement=async(raw)=>{if(!user)return;const payload={user_id:user.id};Object.entries(raw).forEach(([k,v])=>{payload[k]=v===''?null:Number(v)});const {data,error}=await supabase.from(TABLE.measurements).insert(payload).select().single();if(!error)setLatest(data)}
   const saveProfile=async(draft)=>{if(!user)return;const payload={...draft,user_id:user.id,weight_kg:draft.weight_kg?Number(draft.weight_kg):null,height_cm:draft.height_cm?Number(draft.height_cm):null,water_target_ml:Number(draft.water_target_ml)||2000};const {data,error}=await supabase.from(TABLE.profile).upsert(payload).select().single();if(!error)setProfile(data)}
   const saveReminder=async(item)=>{if(!user)return;const payload={user_id:user.id,kind:item.kind,title:item.title,body:item.body||'',time_local:String(item.time_local).slice(0,5),days_of_week:item.days_of_week||[0,1,2,3,4,5,6],enabled:item.enabled!==false,repeat_every_minutes:item.repeat_every_minutes||null,window_start:item.window_start?String(item.window_start).slice(0,5):null,window_end:item.window_end?String(item.window_end).slice(0,5):null,target_path:item.target_path||'/'};let q=supabase.from(TABLE.reminders);const existing=reminders.find(r=>r.kind===item.kind);const {data,error}=existing?await q.update(payload).eq('id',existing.id).select().single():await q.insert(payload).select().single();if(!error)setReminders(v=>[...v.filter(r=>r.kind!==item.kind),data])}
+  const saveRecovery=async(values)=>{if(!user)return;const payload={user_id:user.id,sleep_date:todayDateKey(),quality:Number(values.quality)||null,fatigue:Number(values.fatigue)||null,soreness:Number(values.soreness)||null};const {data,error}=await supabase.from(TABLE.sleep).upsert(payload,{onConflict:'user_id,sleep_date'}).select().single();if(!error)setSleepLog(data)}
   const completeWorkout=async(done)=>{if(!user)return;const now=new Date();const {data:session,error}=await supabase.from(TABLE.sessions).insert({user_id:user.id,title:starterWeek[now.getDay()].title,completed_at:now.toISOString(),duration_seconds:null}).select().single();if(!error&&session){const rows=done.map(x=>({session_id:session.id,user_id:user.id,exercise_id:x.exercise.id,set_number:x.set_number,reps:x.reps,seconds:x.seconds,completed:true}));if(rows.length)await supabase.from(TABLE.sets).insert(rows);setSessions(v=>[session,...v])}setWorkoutOpen(false);setTab('progress')}
 
   if(loading) return <main className="loading-screen"><img src="/icon.svg" alt="One Fitness"/><Spinner/></main>
@@ -298,11 +333,11 @@ export default function App() {
   const today=starterWeek[new Date().getDay()]
   return <div className="app-shell"><main className="mobile-app">
     <div className="content-scroll">
-      {tab==='home'&&<HomeScreen profile={profile} exercises={exercises} waterMl={waterMl} meals={meals} sessions={sessions} onWater={addWater} onStart={()=>setWorkoutOpen(true)} onTab={setTab}/>}
+      {tab==='home'&&<HomeScreen profile={profile} exercises={exercises} waterMl={waterMl} meals={meals} sessions={sessions} sleepLog={sleepLog} onWater={addWater} onStart={()=>setWorkoutOpen(true)} onTab={setTab}/>}
       {tab==='workout'&&<WorkoutScreen exercises={exercises} onStart={()=>setWorkoutOpen(true)}/>}
       {tab==='nutrition'&&<NutritionScreen profile={profile} waterMl={waterMl} meals={meals} onWater={addWater} onAddMeal={addMeal}/>}
       {tab==='progress'&&<ProgressScreen latest={latest} sessions={sessions} onAddMeasurement={addMeasurement}/>}
-      {tab==='profile'&&<ProfileScreen profile={profile} reminders={reminders} onSaveProfile={saveProfile} onSaveReminder={saveReminder} onLogout={()=>supabase.auth.signOut()}/>}
+      {tab==='profile'&&<ProfileScreen profile={profile} reminders={reminders} sleepLog={sleepLog} onSaveProfile={saveProfile} onSaveReminder={saveReminder} onSaveRecovery={saveRecovery} onLogout={()=>supabase.auth.signOut()}/>}
     </div>
     <nav className="bottom-nav">{tabs.map(([key,Icon,label])=><button key={key} className={tab===key?'active':''} onClick={()=>setTab(key)}><Icon size={21}/><span>{label}</span></button>)}</nav>
     {workoutOpen&&today.exercises.length>0&&<WorkoutModal workout={today} exercises={exercises} user={user} onClose={()=>setWorkoutOpen(false)} onComplete={completeWorkout}/>}
