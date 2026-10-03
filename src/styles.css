@@ -780,3 +780,28 @@ input,select,textarea{font-size:16px!important} /* empêche le zoom automatique 
   border-radius:inherit;
 }
 .exercise-visual.compact .visual-sprite{min-height:220px}
+
+
+/* Preserve the 4:5 artwork ratio so sprite cells never stretch or look pixelated */
+.visual-sprite--coach{aspect-ratio:4/5;height:auto}
+.coach-cutout .visual-sprite--coach,
+.selected-workout-art .visual-sprite--coach,
+.coach-presence-art .visual-sprite--coach,
+.nutrition-coach-card .visual-sprite--coach,
+.recovery-coach .visual-sprite--coach,
+.prepare-coach .visual-sprite--coach,
+.session-coach-cue .visual-sprite--coach,
+.coach-popup-art .visual-sprite--coach,
+.completion-coach .visual-sprite--coach,
+.profile-card>.visual-sprite--coach{
+  width:min(100%,280px);
+  height:auto;
+  margin:auto;
+  align-self:end;
+}
+.profile-stack>.visual-sprite--coach{
+  aspect-ratio:1/1;
+  background-image:url('/coach.svg');
+  background-size:cover;
+  background-position:center 15%;
+}
