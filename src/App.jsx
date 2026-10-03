@@ -394,6 +394,7 @@ function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
   const startedAt=useRef(Date.now())
   const wakeLockRef=useRef(null)
   const timerEndRef=useRef(Date.now()+5000)
+  const autoStartRef=useRef(true)
 
   const item=workout.exercises[exerciseIndex]
   const exercise=bySlug[item?.slug]
@@ -431,9 +432,15 @@ function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
 
   useEffect(()=>{
     if(phase==='work'){
-      setSecondsLeft(item?.seconds||0)
-      setRunning(false)
+      const target=item?.seconds||0
+      setSecondsLeft(target)
       timerEndRef.current=null
+      if(autoStartRef.current && target>0){
+        autoStartRef.current=false
+        setRunning(true)
+      }else{
+        setRunning(false)
+      }
     }
   },[exerciseIndex,setNo,phase,item?.seconds])
 
@@ -472,8 +479,10 @@ function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
     if(phase==='rest' && pending){
       playTimerTone('rest')
       navigator.vibrate?.([70,40,70])
+      const nextIndex=pending==='exercise'?exerciseIndex+1:exerciseIndex
+      autoStartRef.current=Boolean(workout.exercises[nextIndex]?.seconds)
       if(pending==='set') setSetNo(n=>n+1)
-      if(pending==='exercise'){setExerciseIndex(i=>i+1);setSetNo(1)}
+      if(pending==='exercise'){setExerciseIndex(nextIndex);setSetNo(1)}
       setPending(null)
       setPhase('work')
       setRunning(false)
