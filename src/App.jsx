@@ -382,16 +382,22 @@ function ProfileScreen({ profile, reminders, sleepLog, pushState, onEnablePush, 
 
 function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
   const bySlug=useMemo(()=>Object.fromEntries(exercises.map(e=>[e.slug,e])),[exercises])
-  const [exerciseIndex,setExerciseIndex]=useState(0)
-  const [setNo,setSetNo]=useState(1)
-  const [phase,setPhase]=useState('prepare')
-  const [running,setRunning]=useState(true)
-  const [secondsLeft,setSecondsLeft]=useState(5)
-  const [pending,setPending]=useState(null)
-  const [done,setDone]=useState([])
-  const [elapsed,setElapsed]=useState(0)
+  const restored=useMemo(()=>{
+    try{
+      const saved=JSON.parse(localStorage.getItem(WORKOUT_DRAFT_KEY)||'null')
+      return saved && saved.week===week && saved.day===day ? saved : null
+    }catch{return null}
+  },[week,day])
+  const [exerciseIndex,setExerciseIndex]=useState(restored?.exerciseIndex??0)
+  const [setNo,setSetNo]=useState(restored?.setNo??1)
+  const [phase,setPhase]=useState(restored?.phase||'prepare')
+  const [running,setRunning]=useState(Boolean(restored?.running ?? true))
+  const [secondsLeft,setSecondsLeft]=useState(restored?.secondsLeft??5)
+  const [pending,setPending]=useState(restored?.pending||null)
+  const [done,setDone]=useState(restored?.done||[])
+  const [elapsed,setElapsed]=useState(restored?.elapsed||0)
   const [wakeState,setWakeState]=useState('activation')
-  const startedAt=useRef(Date.now())
+  const startedAt=useRef(restored?.startedAt||Date.now())
   const wakeLockRef=useRef(null)
   const timerEndRef=useRef(Date.now()+5000)
   const autoStartRef=useRef(true)
@@ -399,6 +405,16 @@ function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
   const item=workout.exercises[exerciseIndex]
   const exercise=bySlug[item?.slug]
   const isTimed=Boolean(item?.seconds)
+
+  useEffect(()=>{
+    if(!item||!exercise)return
+    try{
+      localStorage.setItem(WORKOUT_DRAFT_KEY,JSON.stringify({
+        week,day,exerciseIndex,setNo,phase,running,secondsLeft,pending,done,elapsed,
+        startedAt:startedAt.current,savedAt:Date.now(),
+      }))
+    }catch{}
+  },[week,day,exerciseIndex,setNo,phase,running,secondsLeft,pending,done,elapsed,item,exercise])
 
   const requestWakeLock=async()=>{
     if(!('wakeLock' in navigator)){setWakeState('indisponible');return}
