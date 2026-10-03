@@ -340,6 +340,11 @@ function NutritionScreen({ profile, waterMl, meals, onWater, onAddMeal }) {
   return <>
     <header className="screen-header"><div><p className="eyebrow">ALIMENTATION & EAU</p><h1>Nutrition</h1><p className="muted">Simple, régulier, adapté à ton quotidien.</p></div><span className="big-icon"><Apple/></span></header>
 
+    <section className="nutrition-coach-card hydration-coach">
+      <div><p className="eyebrow">HYDRATATION</p><h2>Garde ta bouteille près de toi</h2><p>{percent>=100?'Objectif atteint aujourd’hui. Bien joué !':`Tu es à ${percent}% de ton objectif d’eau.`}</p></div>
+      <SafeImage src={coachAssets.hydration} alt="Coach hydratation"/>
+    </section>
+
     <section className="hydration-banner">
       <div><Droplets size={28}/><p>Hydratation aujourd’hui</p><h2>{waterMl} ml <small>/ {target} ml</small></h2><div className="water-progress"><i style={{width:`${percent}%`}}/></div></div>
       <div className="water-actions"><button onClick={()=>onWater(250)}>+250</button><button onClick={()=>onWater(500)}>+500</button></div>
@@ -347,9 +352,14 @@ function NutritionScreen({ profile, waterMl, meals, onWater, onAddMeal }) {
 
     <section className="section-block"><div className="section-title"><h2>Repas du jour</h2><span>{meals.length}/4</span></div><div className="meal-timeline">{mealMoments.map(m=>{const found=meals.find(x=>x.meal_type===m.key);return <div className={`meal-row ${found?'done':''}`} key={m.key}><span className="meal-time">{m.time}</span><span className="meal-check">{found?<Check size={16}/>:<Utensils size={16}/>}</span><div><b>{m.label}</b><p>{found?found.title||'Repas enregistré':'À noter'}</p></div></div>})}</div></section>
 
+    <section className="nutrition-coach-card food-coach">
+      <SafeImage src={coachAssets.nutrition} alt="Coach nutrition"/>
+      <div><p className="eyebrow">COACH NUTRITION</p><h2>Construis tes repas simplement</h2><p>Protéines + féculents selon ton activité + légumes/fruits + eau. La régularité compte plus qu’un repas parfait.</p></div>
+    </section>
+
     <section className="section-block"><div className="section-title"><h2>Ajouter un repas</h2><Plus size={20}/></div><form className="quick-form" onSubmit={submit}><select value={meal.meal_type} onChange={e=>setMeal({...meal,meal_type:e.target.value})}>{mealMoments.map(m=><option value={m.key} key={m.key}>{m.label}</option>)}</select><input value={meal.title} onChange={e=>setMeal({...meal,title:e.target.value})} placeholder="Ex. riz, poulet, haricots, légumes"/><button className="primary-button small">Enregistrer</button></form></section>
 
-    <section className="nutrition-guide"><div><span className="icon-orb blue"><Target size={18}/></span><b>Repère simple</b></div><p>À plusieurs repas : une source de protéines, des féculents selon ta faim et ton activité, des fruits/légumes et de l’eau. Pour voir les abdos, la régularité alimentaire compte autant que les exercices.</p></section>
+    <section className="nutrition-guide"><div><span className="icon-orb blue"><Target size={18}/></span><b>Repère simple</b></div><p>Pour voir les abdos et construire du muscle, l’entraînement seul ne suffit pas : sommeil, régularité alimentaire et apport suffisant en protéines comptent aussi.</p></section>
   </>
 }
 
