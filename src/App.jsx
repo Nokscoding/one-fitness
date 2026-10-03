@@ -32,8 +32,10 @@ const tabs = [
 
 const tabKeys = new Set(tabs.map(([key]) => key))
 const initialTab = () => {
-  const requested = new URLSearchParams(window.location.search).get('tab')
-  return tabKeys.has(requested) ? requested : 'home'
+  const params = new URLSearchParams(window.location.search)
+  const requested = params.get('tab')
+  const fromPush = params.get('from') === 'push'
+  return fromPush && tabKeys.has(requested) ? requested : 'home'
 }
 const formatDate = (date = new Date()) => new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' }).format(date)
 const startOfTodayISO = () => { const d = new Date(); d.setHours(0,0,0,0); return d.toISOString() }
@@ -197,7 +199,7 @@ function PushCard({ state, onEnable }) {
   </section>
 }
 
-function HomeScreen({ profile, waterMl, meals, sessions, sleepLog, pushState, onEnablePush, onWater, onStart, onTab }) {
+function HomeScreen({ profile, waterMl, meals, sessions, sleepLog, pushState, workoutDraft, onEnablePush, onWater, onStart, onResume, onTab }) {
   const today=getTodayWorkout(profile?.program_started_at)
   const tomorrow=getTomorrowWorkout(profile?.program_started_at)
   const meta=getProgramMeta(today.week)
@@ -250,6 +252,16 @@ function HomeScreen({ profile, waterMl, meals, sessions, sleepLog, pushState, on
       </div>
       <div className="coach-cutout"><SafeImage src={todayDone?coachAssets.complete:(today.workout.focus?.toLowerCase().includes('cardio')?coachAssets.highKnees:coachAssets.ready)} alt="Coach One Fitness"/></div>
     </section>
+
+    {workoutDraft && <button className="resume-workout-card" onClick={onResume}>
+      <span className="resume-workout-icon"><Play size={18}/></span>
+      <div>
+        <p className="eyebrow">SÉANCE EN COURS</p>
+        <b>Reprendre là où tu t’es arrêté</b>
+        <span>Exercice ${Number(workoutDraft.exerciseIndex||0)+1} · série ${workoutDraft.setNo||1}</span>
+      </div>
+      <ChevronRight size={20}/>
+    </button>}
 
     <section className="tomorrow-card" onClick={()=>onTab('workout')}>
       <div><p className="eyebrow">DEMAIN</p><h3>{tomorrow.workout.title}</h3><span>{tomorrow.workout.duration} · {tomorrow.workout.focus}</span></div>
@@ -735,6 +747,8 @@ export default function App() {
   const [sleepLog,setSleepLog]=useState(null)
   const [pushState,setPushState]=useState('default')
   const [activeWorkout,setActiveWorkout]=useState(null)
+  const [workoutDraft,setWorkoutDraft]=useState(null)
+  const contentRef=useRef(null)
   const [coachPopup,setCoachPopup]=useState(null)
   const [completionSummary,setCompletionSummary]=useState(null)
 
@@ -764,9 +778,8 @@ export default function App() {
 
   const changeTab=key=>{
     setTab(key)
-    const url=new URL(window.location.href)
-    url.searchParams.set('tab',key)
-    history.replaceState({},'',url)
+    history.replaceState({},'',window.location.pathname)
+    requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0,behavior:'auto'}))
   }
 
   const loadData=async(currentUser=user)=>{
@@ -786,11 +799,8 @@ export default function App() {
     setExercises(e.data||[])
     try{
       const saved=JSON.parse(localStorage.getItem(WORKOUT_DRAFT_KEY)||'null')
-      if(saved?.week && Number.isInteger(saved?.day)){
-        const savedWorkout=getWeekPlan(saved.week)?.[saved.day]
-        if(savedWorkout) setActiveWorkout({workout:savedWorkout,week:saved.week,day:saved.day})
-      }
-    }catch{}
+      setWorkoutDraft(saved?.week && Number.isInteger(saved?.day) ? saved : null)
+    }catch{setWorkoutDraft(null)}
     setWaterMl((w.data||[]).reduce((a,x)=>a+x.amount_ml,0))
     setMeals(m.data||[])
     setMeasurementHistory([...(meas.data||[])].reverse())
@@ -801,6 +811,9 @@ export default function App() {
   }
 
   useEffect(()=>{
+    const params=new URLSearchParams(window.location.search)
+    if(params.get('from')!=='push') history.replaceState({},'',window.location.pathname)
+    else history.replaceState({},'',window.location.pathname)
     let mounted=true
     supabase.auth.getUser().then(({data})=>{
       if(!mounted)return
@@ -883,6 +896,23 @@ export default function App() {
       alert('La séance est terminée, mais son enregistrement a échoué. Réessaie depuis l’historique.')
     }
     try{localStorage.removeItem(WORKOUT_DRAFT_KEY)}catch{}
+    setWorkoutDraft(null)
+    setActiveWorkout(null)
+  }
+
+  const resumeSavedWorkout=()=>{
+    if(!workoutDraft)return
+    const savedWorkout=getWeekPlan(workoutDraft.week)?.[workoutDraft.day]
+    if(!savedWorkout)return
+    primeAudio()
+    setActiveWorkout({workout:savedWorkout,week:workoutDraft.week,day:workoutDraft.day})
+  }
+
+  const closeActiveWorkout=()=>{
+    try{
+      const saved=JSON.parse(localStorage.getItem(WORKOUT_DRAFT_KEY)||'null')
+      setWorkoutDraft(saved?.week && Number.isInteger(saved?.day) ? saved : null)
+    }catch{}
     setActiveWorkout(null)
   }
 
@@ -904,15 +934,15 @@ export default function App() {
   }
 
   return <div className="app-shell"><main className="mobile-app">
-    <div className="content-scroll">
-      {tab==='home'&&<HomeScreen profile={profile} waterMl={waterMl} meals={meals} sessions={sessions} sleepLog={sleepLog} pushState={pushState} onEnablePush={enablePush} onWater={addWater} onStart={()=>{primeAudio();setActiveWorkout({workout,week,day})}} onTab={changeTab}/>}
+    <div className="content-scroll" ref={contentRef}>
+      {tab==='home'&&<HomeScreen profile={profile} waterMl={waterMl} meals={meals} sessions={sessions} sleepLog={sleepLog} pushState={pushState} workoutDraft={workoutDraft} onEnablePush={enablePush} onWater={addWater} onStart={()=>{primeAudio();setActiveWorkout({workout,week,day})}} onResume={resumeSavedWorkout} onTab={changeTab}/>} 
       {tab==='workout'&&<WorkoutScreen profile={profile} exercises={exercises} sessions={sessions} onStartWorkout={(w,wk,d)=>{primeAudio();setActiveWorkout({workout:w,week:wk,day:d})}}/>}
       {tab==='nutrition'&&<NutritionScreen profile={profile} waterMl={waterMl} meals={meals} onWater={addWater} onAddMeal={addMeal}/>}
       {tab==='progress'&&<ProgressScreen latest={latest} measurementHistory={measurementHistory} sessions={sessions} onAddMeasurement={addMeasurement}/>}
       {tab==='profile'&&<ProfileScreen profile={profile} reminders={reminders} sleepLog={sleepLog} pushState={pushState} onEnablePush={enablePush} onSaveProfile={saveProfile} onSaveReminder={saveReminder} onSaveRecovery={saveRecovery} onLogout={()=>supabase.auth.signOut()}/>}
     </div>
     <nav className="bottom-nav">{tabs.map(([key,Icon,label])=><button key={key} className={tab===key?'active':''} onClick={()=>changeTab(key)}><Icon size={21}/><span>{label}</span></button>)}</nav>
-    {activeWorkout&&<ActiveWorkout workout={activeWorkout.workout} week={activeWorkout.week} day={activeWorkout.day} exercises={exercises} onClose={()=>setActiveWorkout(null)} onComplete={completeWorkout}/>}
+    {activeWorkout&&<ActiveWorkout workout={activeWorkout.workout} week={activeWorkout.week} day={activeWorkout.day} exercises={exercises} onClose={closeActiveWorkout} onComplete={completeWorkout}/>}
     <CoachPopup popup={coachPopup} onClose={()=>setCoachPopup(null)} onAction={handleCoachPopupAction}/>
     <CompletionScreen
       summary={completionSummary}
