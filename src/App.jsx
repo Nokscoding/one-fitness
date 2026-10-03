@@ -274,24 +274,48 @@ function HomeScreen({ profile, waterMl, meals, sessions, sleepLog, pushState, on
 }
 
 function WorkoutScreen({ profile, exercises, sessions, onStartWorkout }) {
-  const currentWeek = getProgramWeek(profile?.program_started_at)
+  const currentWeek=getProgramWeek(profile?.program_started_at)
   const [viewWeek,setViewWeek]=useState(currentWeek)
+  const [dayOffset,setDayOffset]=useState(0)
+  const selectedDate=useMemo(()=>{const d=new Date();d.setDate(d.getDate()+dayOffset);return d},[dayOffset])
+  const selected=getWorkoutForDate(profile?.program_started_at,selectedDate)
   const plan=getWeekPlan(viewWeek)
   const meta=getProgramMeta(viewWeek)
+  const weekStats=getWeekStats(viewWeek,sessions)
   const bySlug=useMemo(()=>Object.fromEntries(exercises.map(e=>[e.slug,e])),[exercises])
+  const selectedSession=sessions.filter(s=>Number(s.program_week)===Number(selected.week)&&Number(s.program_day)===Number(selected.day)&&s.completed_at).sort((a,b)=>Number(b.completion_percent||0)-Number(a.completion_percent||0))[0]||null
 
   return <>
-    <header className="screen-header"><div><p className="eyebrow">PROGRAMME MAISON</p><h1>Mes séances</h1><p className="muted">Progression structurée sur 6 semaines.</p></div><span className="big-icon"><Dumbbell/></span></header>
+    <header className="screen-header"><div><p className="eyebrow">PROGRAMME MAISON</p><h1>Mes séances</h1><p className="muted">Planning réel, aujourd’hui et demain.</p></div><span className="big-icon"><Dumbbell/></span></header>
+
+    <div className="day-toggle">
+      <button className={dayOffset===0?'active':''} onClick={()=>setDayOffset(0)}>Aujourd’hui</button>
+      <button className={dayOffset===1?'active':''} onClick={()=>setDayOffset(1)}>Demain</button>
+    </div>
+
+    <section className="selected-workout-card">
+      <div className="selected-workout-copy">
+        <p className="eyebrow">{dayOffset===0?'AUJOURD’HUI':'DEMAIN'} · SEMAINE {selected.week}</p>
+        <h2>{selected.workout.title}</h2>
+        <p>{selected.workout.duration} · {selected.workout.focus}</p>
+        {selectedSession
+          ? <span className="selected-done"><Check size={15}/> Terminée · {selectedSession.completion_percent||100}%</span>
+          : selected.workout.exercises.length
+            ? <button className="primary-button small" onClick={()=>onStartWorkout(selected.workout,selected.week,selected.day)}><Play size={16}/> {dayOffset===0?'Démarrer':'Voir / démarrer'}</button>
+            : <span className="rest-badge">Jour de récupération</span>}
+      </div>
+      <div className="selected-workout-art"><SafeImage src={selected.workout.focus?.toLowerCase().includes('cardio')?coachAssets.jumpRope:selected.workout.focus?.toLowerCase().includes('récup')?coachAssets.recovery:coachAssets.ready} alt="Coach séance"/></div>
+    </section>
 
     <section className="phase-card">
-      <div><span>SEMAINE {viewWeek}/6</span><h2>{meta.phase}</h2><p>Objectif : progresser sans brûler les étapes.</p></div>
+      <div><span>SEMAINE {viewWeek}/6</span><h2>{meta.phase}</h2><p>{weekStats.completed}/{weekStats.total} séances terminées.</p></div>
       <div className="week-switch">{[1,2,3,4,5,6].map(w=><button key={w} className={w===viewWeek?'active':''} onClick={()=>setViewWeek(w)}>{w}</button>)}</div>
     </section>
 
     <section className="week-list">
       {Object.entries(plan).map(([day,data])=>{
-        const isToday=Number(day)===new Date().getDay() && viewWeek===currentWeek
-        const completed=sessions.some(s=>s.program_week===viewWeek && s.program_day===Number(day))
+        const isToday=Number(day)===new Date().getDay()&&viewWeek===currentWeek
+        const completed=sessions.some(s=>Number(s.program_week)===Number(viewWeek)&&Number(s.program_day)===Number(day)&&s.completed_at)
         return <article key={day} className={`day-card ${isToday?'active':''}`}>
           <div className="day-number">{dayLabels[day]?.slice(0,1)}</div>
           <div className="day-body"><b>{data.title}</b><span>{data.duration} · {data.focus}</span></div>
@@ -300,7 +324,10 @@ function WorkoutScreen({ profile, exercises, sessions, onStartWorkout }) {
       })}
     </section>
 
-    <section className="section-block"><div className="section-title"><div><p className="eyebrow">BIBLIOTHÈQUE</p><h2>Exercices</h2></div><span>{exercises.length}</span></div><div className="exercise-grid">{exercises.map(ex=><details className="exercise-card" key={ex.id}><summary><span className="icon-orb blue"><Zap size={17}/></span><div><b>{ex.name}</b><small>{ex.category} · {ex.difficulty}</small></div><ChevronRight size={18}/></summary><div className="exercise-detail"><h4>Comment faire</h4><ol>{(ex.instructions||[]).map((x,i)=><li key={i}>{x}</li>)}</ol>{ex.safety_notes?.length>0&&<div className="safety"><ShieldCheck size={17}/><div><b>Sécurité</b>{ex.safety_notes.map((x,i)=><p key={i}>{x}</p>)}</div></div>}</div></details>)}</div></section>
+    <section className="section-block">
+      <div className="section-title"><div><p className="eyebrow">BIBLIOTHÈQUE</p><h2>Exercices</h2></div><span>{exercises.length}</span></div>
+      <div className="exercise-grid">{exercises.map(ex=><details className="exercise-card" key={ex.id}><summary><span className="icon-orb blue"><Zap size={17}/></span><div><b>{ex.name}</b><small>{ex.category} · {ex.difficulty}</small></div><ChevronRight size={18}/></summary><div className="exercise-detail"><ExerciseGuideImage slug={ex.slug} name={ex.name} compact/><h4>Comment faire</h4><ol>{(ex.instructions||[]).map((x,i)=><li key={i}>{x}</li>)}</ol>{ex.safety_notes?.length>0&&<div className="safety"><ShieldCheck size={17}/><div><b>Sécurité</b>{ex.safety_notes.map((x,i)=><p key={i}>{x}</p>)}</div></div>}</div></details>)}</div>
+    </section>
   </>
 }
 
