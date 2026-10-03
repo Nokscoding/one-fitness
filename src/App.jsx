@@ -46,26 +46,64 @@ function Spinner() { return <div className="spinner" aria-label="Chargement"/> }
 
 function AuthScreen() {
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [mode, setMode] = useState('login')
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(false)
-  const sendLink = async (e) => {
-    e.preventDefault(); setLoading(true); setStatus('')
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } })
-    setStatus(error ? error.message : 'Lien envoyé. Ouvre ton e-mail pour te connecter.')
-    setLoading(false)
+
+  const submit = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    setStatus('')
+
+    try {
+      if (mode === 'register') {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://hdsjpsrvoiwqfjuehdkt.supabase.co'
+        const response = await fetch(`${supabaseUrl}/functions/v1/one-fitness-register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        })
+        const payload = await response.json()
+        if (!response.ok) throw new Error(payload?.error || 'Impossible de créer le compte.')
+
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+        if (signInError) throw signInError
+        return
+      }
+
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) throw error
+    } catch (error) {
+      const raw = String(error?.message || error || '')
+      const friendly = raw.toLowerCase().includes('invalid login credentials')
+        ? 'E-mail ou mot de passe incorrect.'
+        : raw
+      setStatus(friendly)
+    } finally {
+      setLoading(false)
+    }
   }
+
   return <main className="auth-screen">
     <div className="auth-card">
       <Brand />
       <img className="auth-coach" src="/coach.svg" alt="Coach One Fitness"/>
       <p className="eyebrow">TON COACH PERSONNEL</p>
-      <h1>Entraînement, cardio, alimentation et récupération au même endroit.</h1>
-      <p className="muted">Connexion par lien sécurisé. Tes données One Fitness restent séparées des données NKS.</p>
-      <form onSubmit={sendLink} className="auth-form">
-        <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="ton@email.com" required />
-        <button className="primary-button" disabled={loading}>{loading ? 'Envoi…' : 'Recevoir le lien'}</button>
+      <h1>{mode === 'login' ? 'Connecte-toi à One Fitness.' : 'Crée ton compte One Fitness.'}</h1>
+      <p className="muted">{mode === 'login' ? 'Entre simplement ton e-mail et ton mot de passe.' : 'Aucune vérification par e-mail : ton compte est créé directement.'}</p>
+
+      <form onSubmit={submit} className="auth-form">
+        <input type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="E-mail" required />
+        <input type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength="8" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Mot de passe" required />
+        <button className="primary-button" disabled={loading}>{loading ? 'Patiente…' : mode === 'login' ? 'Se connecter' : 'Créer mon compte'}</button>
       </form>
-      {status && <p className="status-note">{status}</p>}
+
+      {status && <p className="status-note error-note">{status}</p>}
+
+      <button className="auth-switch" type="button" onClick={()=>{setMode(mode === 'login' ? 'register' : 'login');setStatus('')}}>
+        {mode === 'login' ? 'Première fois ? Créer mon compte' : 'J’ai déjà un compte · Me connecter'}
+      </button>
     </div>
   </main>
 }
