@@ -258,7 +258,7 @@ function HomeScreen({ profile, waterMl, meals, sessions, sleepLog, pushState, wo
       <div>
         <p className="eyebrow">SÉANCE EN COURS</p>
         <b>Reprendre là où tu t’es arrêté</b>
-        <span>Exercice ${Number(workoutDraft.exerciseIndex||0)+1} · série ${workoutDraft.setNo||1}</span>
+        <span>Exercice {Number(workoutDraft.exerciseIndex||0)+1} · série {workoutDraft.setNo||1}</span>
       </div>
       <ChevronRight size={20}/>
     </button>}
@@ -701,7 +701,6 @@ function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
       <p className="eyebrow">{exercise.category}</p>
       <h1>{exercise.name}</h1>
       <p className="session-target">{item.eachSide?'Chaque côté · ':''}{item.reps?`${item.reps} répétitions`:`${item.seconds} secondes`}</p>
-      <ExerciseGuideImage slug={exercise.slug} name={exercise.name}/>
 
       {phase==='work' ? <>
         {isTimed ? <div className="work-timer">
@@ -726,6 +725,11 @@ function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
           <button onClick={skipRest}>Passer le repos</button>
         </div>
       </div>}
+
+      {getExerciseGuide(exercise.slug) && <details className="session-guide-details">
+        <summary><span><Sparkles size={17}/> Voir le mouvement</span><ChevronRight size={18}/></summary>
+        <ExerciseGuideImage slug={exercise.slug} name={exercise.name}/>
+      </details>}
 
       <section className="session-howto"><h2>Technique</h2><ol>{(exercise.instructions||[]).slice(0,4).map((x,i)=><li key={i}>{x}</li>)}</ol>{exercise.safety_notes?.length>0&&<div className="session-safety"><ShieldCheck size={18}/><p>{exercise.safety_notes[0]}</p></div>}</section>
     </main>
