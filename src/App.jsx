@@ -50,7 +50,7 @@ function AuthScreen() {
   return <main className="auth-screen">
     <div className="auth-card">
       <Brand />
-      <img className="auth-coach" src="/coach.webp" alt="Coach One Fitness"/>
+      <img className="auth-coach" src="/coach.svg" alt="Coach One Fitness"/>
       <p className="eyebrow">TON COACH PERSONNEL</p>
       <h1>Entraînement, cardio, alimentation et récupération au même endroit.</h1>
       <p className="muted">Connexion par lien sécurisé. Tes données One Fitness restent séparées des données NKS.</p>
@@ -84,7 +84,7 @@ function Onboarding({ user, onDone }) {
   return <main className="onboarding">
     <section className="onboarding-card">
       <Brand />
-      <div className="coach-bubble"><img src="/coach.webp" alt="Coach"/><div><b>On prépare ton point de départ.</b><span>Tu pourras modifier ces infos plus tard.</span></div></div>
+      <div className="coach-bubble"><img src="/coach.svg" alt="Coach"/><div><b>On prépare ton point de départ.</b><span>Tu pourras modifier ces infos plus tard.</span></div></div>
       <h1>Ton profil One Fitness</h1>
       <form onSubmit={save} className="grid-form">
         <label>Prénom / nom à afficher<input value={form.display_name} onChange={e=>setForm({...form,display_name:e.target.value})} placeholder="Noks" /></label>
@@ -108,14 +108,14 @@ function HomeScreen({ profile, exercises, waterMl, meals, sessions, onWater, onS
   return <>
     <header className="topbar">
       <div><p className="tiny">{formatDate()}</p><h1>Salut, {name} 👋</h1><p className="muted">Ton coach a préparé ta journée.</p></div>
-      <div className="profile-stack"><img src="/coach.webp" alt="Coach"/><button className="icon-button" onClick={()=>onTab('profile')}><Bell size={20}/><i/></button></div>
+      <div className="profile-stack"><img src="/coach.svg" alt="Coach"/><button className="icon-button" onClick={()=>onTab('profile')}><Bell size={20}/><i/></button></div>
     </header>
 
     <section className="hero-card">
       <div className="hero-content"><span className="pill-label">SÉANCE DU JOUR</span><h2>{today.title}</h2><p>{today.subtitle}</p>
       <div className="hero-tags"><span><Clock3 size={15}/> {today.exercises.length ? '20–35 min' : 'Repos'}</span><span><Home size={15}/> Maison</span></div>
       {today.exercises.length ? <button className="white-button" onClick={onStart}>Commencer <ChevronRight size={18}/></button> : <button className="white-button" onClick={()=>onTab('progress')}>Voir mes progrès <ChevronRight size={18}/></button>}</div>
-      <img src="/coach.webp" alt="Coach One Fitness" className="hero-coach"/>
+      <img src="/coach.svg" alt="Coach One Fitness" className="hero-coach"/>
     </section>
 
     <section className="metric-grid">
@@ -125,7 +125,7 @@ function HomeScreen({ profile, exercises, waterMl, meals, sessions, onWater, onS
       <article className="metric-card"><div className="metric-head"><span className="icon-orb dark"><Bell size={18}/></span><b>Rappels</b><button onClick={()=>onTab('profile')}>Gérer</button></div><ul className="mini-list"><li><Dumbbell size={15}/> Séance <span>{profile?.preferred_workout_time?.slice?.(0,5) || '18:30'}</span></li><li><Droplets size={15}/> Eau <span>régulier</span></li><li><Moon size={15}/> Récupération <span>soir</span></li></ul></article>
     </section>
 
-    <section className="section-block"><div className="section-title"><div><p className="eyebrow">COACH</p><h2>Conseil du jour</h2></div><Sparkles size={22}/></div><div className="coach-message"><img src="/coach.webp" alt="Coach"/><p>{today.exercises.some(x=>x.slug.includes('neck')) ? 'Pour la nuque : résistance légère et contrôle total. Aucun mouvement brusque. La qualité passe avant la force.' : 'Le plus important aujourd’hui : terminer proprement la séance prévue. On augmente la difficulté seulement quand la technique reste bonne.'}</p></div></section>
+    <section className="section-block"><div className="section-title"><div><p className="eyebrow">COACH</p><h2>Conseil du jour</h2></div><Sparkles size={22}/></div><div className="coach-message"><img src="/coach.svg" alt="Coach"/><p>{today.exercises.some(x=>x.slug.includes('neck')) ? 'Pour la nuque : résistance légère et contrôle total. Aucun mouvement brusque. La qualité passe avant la force.' : 'Le plus important aujourd’hui : terminer proprement la séance prévue. On augmente la difficulté seulement quand la technique reste bonne.'}</p></div></section>
   </>
 }
 
@@ -154,7 +154,7 @@ function NutritionScreen({ profile, waterMl, meals, onWater, onAddMeal }) {
     <section className="hydration-banner"><div><Droplets size={28}/><p>Hydratation aujourd’hui</p><h2>{waterMl} ml <small>/ {target} ml</small></h2></div><div className="water-actions"><button onClick={()=>onWater(250)}>+250 ml</button><button onClick={()=>onWater(500)}>+500 ml</button></div></section>
     <section className="section-block"><div className="section-title"><h2>Repas du jour</h2><span>{meals.length}/4 notés</span></div><div className="meal-timeline">{mealMoments.map(m=>{const found=meals.find(x=>x.meal_type===m.key);return <div className={`meal-row ${found?'done':''}`} key={m.key}><span className="meal-time">{m.time}</span><span className="meal-check">{found?<Check size={16}/>:<Utensils size={16}/>}</span><div><b>{m.label}</b><p>{found ? found.title || 'Repas enregistré' : 'À enregistrer'}</p></div></div>})}</div></section>
     <section className="section-block"><div className="section-title"><h2>Ajouter un repas</h2><Plus size={20}/></div><form className="quick-form" onSubmit={submit}><select value={meal.meal_type} onChange={e=>setMeal({...meal,meal_type:e.target.value})}>{mealMoments.map(m=><option value={m.key} key={m.key}>{m.label}</option>)}</select><input value={meal.title} onChange={e=>setMeal({...meal,title:e.target.value})} placeholder="Ex. riz, poulet, légumes"/><button className="primary-button small">Enregistrer</button></form></section>
-    <section className="coach-message nutrition-tip"><img src="/coach.webp" alt="Coach"/><p>Pour construire du muscle, cherche surtout la régularité : une source de protéines à plusieurs repas, des féculents selon ta faim et ton activité, des fruits/légumes et assez d’eau. Pas besoin de manger “parfait”.</p></section>
+    <section className="coach-message nutrition-tip"><img src="/coach.svg" alt="Coach"/><p>Pour construire du muscle, cherche surtout la régularité : une source de protéines à plusieurs repas, des féculents selon ta faim et ton activité, des fruits/légumes et assez d’eau. Pas besoin de manger “parfait”.</p></section>
   </>
 }
 
@@ -185,7 +185,7 @@ function ProfileScreen({ profile, reminders, onSaveProfile, onSaveReminder, onLo
   const saveDraft=()=>onSaveProfile(draft)
   return <>
     <header className="screen-header"><div><p className="eyebrow">TON ESPACE</p><h1>Profil & rappels</h1><p className="muted">Tes réglages One Fitness uniquement.</p></div><span className="big-icon"><Settings/></span></header>
-    <section className="profile-card"><img src="/coach.webp" alt="Coach One Fitness"/><div><p className="eyebrow">OBJECTIF</p><h2>Meilleure silhouette</h2><p>Cou · avant-bras · poignets · pecs · abdos · cardio</p></div></section>
+    <section className="profile-card"><img src="/coach.svg" alt="Coach One Fitness"/><div><p className="eyebrow">OBJECTIF</p><h2>Meilleure silhouette</h2><p>Cou · avant-bras · poignets · pecs · abdos · cardio</p></div></section>
     <section className="section-block"><div className="section-title"><h2>Mon profil</h2><UserRound size={20}/></div><div className="grid-form"><label>Nom affiché<input value={draft?.display_name||''} onChange={e=>setDraft({...draft,display_name:e.target.value})}/></label><div className="split"><label>Poids kg<input value={draft?.weight_kg||''} onChange={e=>setDraft({...draft,weight_kg:e.target.value})}/></label><label>Taille cm<input value={draft?.height_cm||''} onChange={e=>setDraft({...draft,height_cm:e.target.value})}/></label></div><label>Heure d’entraînement<input type="time" value={draft?.preferred_workout_time?.slice?.(0,5)||'18:30'} onChange={e=>setDraft({...draft,preferred_workout_time:e.target.value})}/></label><label>Objectif eau ml<input inputMode="numeric" value={draft?.water_target_ml||2000} onChange={e=>setDraft({...draft,water_target_ml:e.target.value})}/></label><button className="primary-button small" onClick={saveDraft}>Enregistrer</button></div></section>
     <section className="section-block"><div className="section-title"><h2>Équipement</h2><Dumbbell size={20}/></div><div className="chip-row"><span className="selected">✓ Hand gripper</span><span className="selected">✓ Corde à sauter</span><span>Poids du corps</span><span className="locked">+ Haltères plus tard</span></div></section>
     <section className="section-block"><div className="section-title"><h2>Rappels</h2><Bell size={20}/></div><button className="notification-permission" onClick={requestNotifications}><span className="icon-orb blue"><Bell size={17}/></span><div><b>Notifications de l’app</b><p>État : {notificationState}</p></div><ChevronRight size={18}/></button><div className="reminder-list">{defaults.map(d=>{const saved=reminders.find(r=>r.kind===d.kind); const item=saved||d;return <div className="reminder-row" key={d.kind}><span className="icon-orb dark">{d.kind==='water'?<Droplets size={16}/>:d.kind==='meal'?<Utensils size={16}/>:d.kind==='sleep'?<Moon size={16}/>:<Dumbbell size={16}/>}</span><div><b>{item.title}</b><p>{String(item.time_local).slice(0,5)}</p></div><button className={saved?.enabled===false?'toggle':'toggle on'} onClick={()=>onSaveReminder({...item,kind:d.kind,enabled:saved? !saved.enabled:true})}><i/></button></div>})}</div><p className="fine-print">Les rappels sont déjà stockés séparément dans la base One Fitness. L’envoi push automatique quand l’app est fermée sera activé au branchement Netlify + clé VAPID.</p></section>
