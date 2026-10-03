@@ -316,3 +316,28 @@ input,select,textarea{font-size:16px!important} /* empêche le zoom automatique 
 .rest-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 .rest-actions button{min-height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#9fc7ff;font-size:9px;font-weight:800}
 .rest-actions button:last-child{background:#fff;color:var(--navy)}
+
+.series-recovery-actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:9px;
+  margin-top:11px
+}
+.series-recovery-actions button{
+  min-height:44px;
+  border-radius:14px;
+  border:1px solid #dfe6ef;
+  background:#f8fafc;
+  color:#42526a;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  font-size:9px;
+  font-weight:800
+}
+.series-recovery-actions .skip-series{
+  background:#fff;
+  color:#6f7d91;
+  border-style:dashed
+}
