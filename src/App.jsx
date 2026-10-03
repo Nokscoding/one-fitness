@@ -198,12 +198,19 @@ function PushCard({ state, onEnable }) {
 }
 
 function HomeScreen({ profile, waterMl, meals, sessions, sleepLog, pushState, onEnablePush, onWater, onStart, onTab }) {
-  const { week, workout } = getTodayWorkout(profile?.program_started_at)
-  const meta = getProgramMeta(week)
-  const target = profile?.water_target_ml || 2000
-  const waterPercent = clamp(Math.round((waterMl / target) * 100), 0, 100)
-  const name = profile?.display_name || 'Noks'
-  const streak = useMemo(() => {
+  const today=getTodayWorkout(profile?.program_started_at)
+  const tomorrow=getTomorrowWorkout(profile?.program_started_at)
+  const meta=getProgramMeta(today.week)
+  const programStats=getProgramStats(sessions)
+  const weekStats=getWeekStats(today.week,sessions)
+  const todaySessions=sessions.filter(s=>Number(s.program_week)===Number(today.week)&&Number(s.program_day)===Number(today.day)&&s.completed_at)
+  const todayBest=todaySessions.sort((a,b)=>Number(b.completion_percent||0)-Number(a.completion_percent||0))[0]||null
+  const todayDone=Boolean(todayBest)
+  const target=profile?.water_target_ml||2000
+  const waterPercent=clamp(Math.round((waterMl/target)*100),0,100)
+  const name=profile?.display_name||'Noks'
+
+  const streak=useMemo(()=>{
     const unique=[...new Set(sessions.map(s=>new Date(s.started_at).toLocaleDateString('en-CA')))]
     let count=0
     const d=new Date()
@@ -218,27 +225,35 @@ function HomeScreen({ profile, waterMl, meals, sessions, sleepLog, pushState, on
 
   return <>
     <header className="topbar">
-      <div><p className="tiny">{formatDate()}</p><h1>Salut, {name} 👋</h1><p className="muted">Semaine {week}/6 · phase {meta.phase}</p></div>
-      <div className="profile-stack"><img src="/coach.svg" alt="Coach"/><button className="icon-button" onClick={()=>onTab('profile')}><Bell size={20}/>{pushState!=='active'&&<i/>}</button></div>
+      <div><p className="tiny">{formatDate()}</p><h1>Salut, {name} 👋</h1><p className="muted">Semaine {today.week}/6 · phase {meta.phase}</p></div>
+      <div className="profile-stack"><SafeImage src={coachAssets.ready} alt="Coach"/><button className="icon-button" onClick={()=>onTab('profile')}><Bell size={20}/>{pushState!=='active'&&<i/>}</button></div>
     </header>
 
     <section className="program-strip">
-      <div><span>PROGRAMME 6 SEMAINES</span><b>Semaine {week} · {meta.phase}</b></div>
-      <strong>{meta.progress}%</strong>
-      <div className="progress-track"><i style={{width:`${meta.progress}%`}}/></div>
+      <div><span>PROGRAMME TOTAL</span><b>{programStats.completed}/{programStats.totalWorkouts} séances validées</b></div>
+      <strong>{programStats.percent}%</strong>
+      <div className="progress-track"><i style={{width:`${programStats.percent}%`}}/></div>
+      <p className="program-week-note">Cette semaine : {weekStats.completed}/{weekStats.total} séances.</p>
     </section>
 
-    <section className="hero-card">
+    <section className={`hero-card ${todayDone?'done':''}`}>
       <div className="hero-content">
-        <span className="pill-label">SÉANCE DU JOUR</span>
-        <h2>{workout.title}</h2>
-        <p>{workout.focus}</p>
-        <div className="hero-tags"><span><Clock3 size={15}/> {workout.duration}</span><span><Home size={15}/> Maison</span></div>
-        {workout.exercises.length
-          ? <button className="white-button" onClick={onStart}><Play size={17}/> Commencer</button>
-          : <button className="white-button" onClick={()=>onTab('progress')}>Récupération <ChevronRight size={18}/></button>}
+        <span className="pill-label">{todayDone?'SÉANCE DU JOUR TERMINÉE':'SÉANCE DU JOUR'}</span>
+        <h2>{today.workout.title}</h2>
+        <p>{today.workout.focus}</p>
+        <div className="hero-tags"><span><Clock3 size={15}/> {today.workout.duration}</span><span><Home size={15}/> Maison</span></div>
+        {today.workout.exercises.length ? (
+          todayDone
+            ? <button className="white-button" onClick={()=>onTab('progress')}><Check size={17}/> Terminée · {todayBest?.completion_percent||100}%</button>
+            : <button className="white-button" onClick={onStart}><Play size={17}/> Commencer</button>
+        ) : <button className="white-button" onClick={()=>onTab('progress')}>Récupération <ChevronRight size={18}/></button>}
       </div>
-      <div className="coach-cutout"><img src="/coach.svg" alt="Coach One Fitness"/></div>
+      <div className="coach-cutout"><SafeImage src={todayDone?coachAssets.complete:(today.workout.focus?.toLowerCase().includes('cardio')?coachAssets.highKnees:coachAssets.ready)} alt="Coach One Fitness"/></div>
+    </section>
+
+    <section className="tomorrow-card" onClick={()=>onTab('workout')}>
+      <div><p className="eyebrow">DEMAIN</p><h3>{tomorrow.workout.title}</h3><span>{tomorrow.workout.duration} · {tomorrow.workout.focus}</span></div>
+      <ChevronRight size={21}/>
     </section>
 
     <PushCard state={pushState} onEnable={onEnablePush}/>
@@ -249,9 +264,12 @@ function HomeScreen({ profile, waterMl, meals, sessions, sleepLog, pushState, on
       <button className="daily-card" onClick={()=>onTab('progress')}><span className="icon-orb blue"><Flame size={18}/></span><div><b>{streak} j</b><small>Régularité</small></div><ChevronRight size={18}/></button>
     </section>
 
-    <section className="section-block"><div className="section-title"><div><p className="eyebrow">COACH</p><h2>Conseil du jour</h2></div><Sparkles size={22}/></div><div className="coach-message"><img src="/coach.svg" alt="Coach"/><p>{sleepLog?.fatigue >= 4 ? 'Tu as signalé beaucoup de fatigue : garde la séance légère aujourd’hui et arrête si la technique se dégrade.' : workout.exercises.some(x=>x.slug.includes('neck')) ? 'Pour la nuque : résistance légère, mouvement contrôlé, jamais de charge lourde sur la tête.' : 'Cherche une progression régulière. Finir proprement les séries est plus utile que forcer avec une mauvaise technique.'}</p></div></section>
+    <section className="section-block coach-presence">
+      <div className="coach-presence-art"><SafeImage src={sleepLog?.fatigue>=4?coachAssets.recovery:coachAssets.motivate} alt="Coach motivation"/></div>
+      <div><p className="eyebrow">TON COACH</p><h2>{todayDone?'Belle séance 💙':'On avance ensemble'}</h2><p>{sleepLog?.fatigue>=4?'Tu as signalé beaucoup de fatigue. Fais léger et privilégie la récupération.':todayDone?'Ta séance est validée. Hydrate-toi, mange correctement et récupère pour la prochaine.':today.workout.exercises.some(x=>x.slug.includes('neck'))?'Aujourd’hui, nuque légère et contrôlée : aucune charge lourde sur la tête.':'Qualité des mouvements d’abord. On augmente la difficulté seulement quand la technique reste propre.'}</p></div>
+    </section>
 
-    <section className="section-block compact-block"><div className="section-title"><h2>Ta journée</h2><CalendarDays size={20}/></div><div className="day-agenda"><div><span>08:00</span><b>Petit-déjeuner</b></div><div><span>13:00</span><b>Déjeuner</b></div><div><span>{profile?.preferred_workout_time?.slice?.(0,5)||'18:30'}</span><b>{workout.exercises.length?'Séance':'Récupération'}</b></div><div><span>22:30</span><b>Sommeil / récupération</b></div></div></section>
+    <section className="section-block compact-block"><div className="section-title"><h2>Ta journée</h2><CalendarDays size={20}/></div><div className="day-agenda"><div><span>08:00</span><b>Petit-déjeuner</b></div><div><span>13:00</span><b>Déjeuner</b></div><div><span>{profile?.preferred_workout_time?.slice?.(0,5)||'18:30'}</span><b>{todayDone?'Séance faite ✓':today.workout.exercises.length?'Séance':'Récupération'}</b></div><div><span>22:30</span><b>Sommeil / récupération</b></div></div></section>
   </>
 }
 
