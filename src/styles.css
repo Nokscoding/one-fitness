@@ -341,3 +341,374 @@ input,select,textarea{font-size:16px!important} /* empêche le zoom automatique 
   color:#6f7d91;
   border-style:dashed
 }
+
+
+/* ===== One Fitness coach presence + functional program v2 ===== */
+.program-week-note{
+  grid-column:1/-1;
+  margin:0;
+  font-size:9px;
+  color:#7a8799;
+}
+.hero-card.done{
+  background:linear-gradient(135deg,#073b88 0%,#0d5acb 58%,#2b7be7 100%);
+}
+.tomorrow-card{
+  width:100%;
+  margin-top:13px;
+  border:1px solid #e0e9f6;
+  background:linear-gradient(135deg,#f8fbff,#eef5ff);
+  border-radius:19px;
+  padding:14px 15px;
+  display:grid;
+  grid-template-columns:1fr auto;
+  align-items:center;
+  gap:10px;
+  color:#0b1220;
+  text-align:left;
+}
+.tomorrow-card h3{margin:4px 0 3px;font-size:14px;letter-spacing:-.25px}
+.tomorrow-card span{font-size:9px;color:#718096}
+.coach-presence{
+  display:grid;
+  grid-template-columns:94px 1fr;
+  gap:13px;
+  align-items:center;
+  overflow:hidden;
+  background:linear-gradient(135deg,#f7faff,#fff);
+}
+.coach-presence-art{
+  width:94px;
+  height:116px;
+  border-radius:18px;
+  overflow:hidden;
+  background:#edf4ff;
+  border:1px solid #dfeafb;
+}
+.coach-presence-art img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  object-position:center bottom;
+  image-rendering:auto;
+}
+.coach-presence h2{font-size:15px;margin:4px 0 5px}
+.coach-presence p:last-child{font-size:9px;line-height:1.55;color:#627087;margin:0}
+
+.day-toggle{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:7px;
+  padding:5px;
+  margin-bottom:12px;
+  background:#f1f5f9;
+  border-radius:15px;
+}
+.day-toggle button{
+  min-height:39px;
+  border:0;
+  border-radius:11px;
+  background:transparent;
+  color:#788599;
+  font-size:10px;
+  font-weight:800;
+}
+.day-toggle button.active{
+  background:#fff;
+  color:var(--blue);
+  box-shadow:0 5px 13px rgba(28,65,115,.08);
+}
+.selected-workout-card{
+  min-height:178px;
+  position:relative;
+  overflow:hidden;
+  display:grid;
+  grid-template-columns:1fr 115px;
+  gap:8px;
+  padding:18px;
+  margin-bottom:13px;
+  border-radius:24px;
+  background:linear-gradient(135deg,#0b54c8,#247cf2);
+  color:#fff;
+  box-shadow:0 14px 30px rgba(20,103,232,.18);
+}
+.selected-workout-copy{position:relative;z-index:2}
+.selected-workout-copy .eyebrow{color:#dbe9ff}
+.selected-workout-copy h2{font-size:21px;line-height:1.08;margin:7px 0 5px}
+.selected-workout-copy>p:not(.eyebrow){margin:0 0 13px;color:rgba(255,255,255,.76);font-size:9px}
+.selected-workout-art{
+  width:145px;
+  height:185px;
+  position:absolute;
+  right:-12px;
+  bottom:-12px;
+  display:flex;
+  align-items:flex-end;
+  justify-content:center;
+}
+.selected-workout-art img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  object-position:center bottom;
+  image-rendering:auto;
+}
+.selected-done{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  border-radius:999px;
+  padding:7px 10px;
+  background:rgba(255,255,255,.16);
+  font-size:9px;
+  font-weight:800;
+}
+
+.nutrition-coach-card{
+  min-height:150px;
+  position:relative;
+  overflow:hidden;
+  display:grid;
+  align-items:center;
+  gap:12px;
+  margin-bottom:13px;
+  border-radius:23px;
+  border:1px solid #e4ebf5;
+  background:linear-gradient(135deg,#fbfdff,#f3f7ff);
+  padding:16px;
+}
+.nutrition-coach-card.hydration-coach{grid-template-columns:1fr 115px}
+.nutrition-coach-card.food-coach{grid-template-columns:115px 1fr;margin-top:14px}
+.nutrition-coach-card img{
+  width:115px;
+  height:128px;
+  object-fit:contain;
+  object-position:center bottom;
+  image-rendering:auto;
+}
+.nutrition-coach-card h2{font-size:15px;margin:5px 0 4px}
+.nutrition-coach-card p:last-child{font-size:9px;color:#65748a;line-height:1.5;margin:0}
+
+.recovery-coach{
+  display:grid;
+  grid-template-columns:78px 1fr;
+  align-items:center;
+  gap:11px;
+  padding-bottom:12px;
+  margin-bottom:3px;
+  border-bottom:1px solid #eef1f5;
+}
+.recovery-coach img{
+  width:78px;
+  height:90px;
+  object-fit:contain;
+  object-position:center bottom;
+  border-radius:16px;
+  background:#f7f5ff;
+  image-rendering:auto;
+}
+.recovery-coach h2{font-size:15px;margin:4px 0 3px}
+.recovery-coach p:last-child{margin:0;color:#8290a2;font-size:8px}
+
+.exercise-visual{
+  width:100%;
+  margin:14px 0;
+  border-radius:18px;
+  overflow:hidden;
+  background:#f7faff;
+  border:1px solid #e2eaf5;
+}
+.exercise-visual img{
+  display:block;
+  width:100%;
+  height:auto;
+  max-height:340px;
+  object-fit:contain;
+  image-rendering:auto;
+}
+.exercise-visual.compact{
+  margin:0 0 12px;
+}
+.exercise-visual.compact img{max-height:240px}
+
+.session-coach-cue{
+  position:sticky;
+  z-index:12;
+  top:8px;
+  margin:10px 0 0;
+  padding:8px 10px;
+  display:grid;
+  grid-template-columns:44px 1fr;
+  gap:9px;
+  align-items:center;
+  border:1px solid #dbe7f7;
+  border-radius:15px;
+  background:rgba(255,255,255,.96);
+  box-shadow:0 10px 24px rgba(7,22,47,.12);
+}
+.session-coach-cue img{
+  width:44px;
+  height:44px;
+  border-radius:12px;
+  object-fit:contain;
+  background:#f5f8ff;
+}
+.session-coach-cue b{display:block;font-size:9px;color:var(--blue)}
+.session-coach-cue p{margin:2px 0 0;font-size:8px;line-height:1.35;color:#536176}
+
+/* Coach popup */
+.coach-popup-backdrop{
+  position:absolute;
+  z-index:240;
+  inset:0;
+  display:flex;
+  align-items:flex-end;
+  justify-content:center;
+  padding:18px 14px calc(18px + env(safe-area-inset-bottom));
+  background:rgba(5,16,35,.55);
+  backdrop-filter:blur(8px);
+}
+.coach-popup-card{
+  position:relative;
+  width:100%;
+  max-width:390px;
+  overflow:hidden;
+  border-radius:28px;
+  background:#fff;
+  box-shadow:0 26px 70px rgba(4,16,40,.24);
+}
+.coach-popup-close{
+  position:absolute;
+  z-index:5;
+  top:12px;
+  right:12px;
+  width:38px;
+  height:38px;
+  border:0;
+  border-radius:50%;
+  color:#26344a;
+  background:rgba(255,255,255,.92);
+  display:grid;
+  place-items:center;
+}
+.coach-popup-art{
+  height:245px;
+  padding:10px 20px 0;
+  display:flex;
+  align-items:flex-end;
+  justify-content:center;
+  background:radial-gradient(circle at 50% 75%,#dceaff 0,#f3f7ff 42%,#fff 72%);
+}
+.coach-popup-art img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  object-position:center bottom;
+  image-rendering:auto;
+}
+.coach-popup-copy{padding:18px}
+.coach-popup-copy h2{font-size:23px;line-height:1.08;margin:5px 0 7px;letter-spacing:-.7px}
+.coach-popup-copy>p:last-of-type{font-size:11px;line-height:1.55;color:#59677b;margin:0}
+.coach-popup-copy .primary-button{width:100%;margin-top:15px}
+
+/* Completion page */
+.completion-screen{
+  position:absolute;
+  z-index:260;
+  inset:0;
+  overflow-y:auto;
+  background:linear-gradient(180deg,#eef6ff 0%,#fff 48%,#f8fbff 100%);
+  padding:max(18px,env(safe-area-inset-top)) 18px calc(26px + env(safe-area-inset-bottom));
+}
+.completion-confetti{
+  position:absolute;
+  right:28px;
+  top:78px;
+  font-size:48px;
+  color:#ff6da8;
+  opacity:.45;
+}
+.completion-top{text-align:center}
+.completion-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  padding:8px 12px;
+  border-radius:999px;
+  background:#e8f8e2;
+  color:#46942b;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.08em;
+}
+.completion-main{text-align:center}
+.completion-coach{
+  height:280px;
+  margin:6px auto 2px;
+  display:flex;
+  justify-content:center;
+  align-items:flex-end;
+}
+.completion-coach img{
+  max-width:100%;
+  width:260px;
+  height:100%;
+  object-fit:contain;
+  object-position:center bottom;
+  image-rendering:auto;
+}
+.completion-main h1{font-size:30px;letter-spacing:-1.2px;line-height:1.05;margin:6px 0 7px}
+.completion-sub{max-width:330px;margin:0 auto;color:#69778a;font-size:10px;line-height:1.55}
+.completion-stats{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:8px;
+  margin:18px 0;
+}
+.completion-stats div{
+  padding:13px 8px;
+  border:1px solid #e1e9f4;
+  border-radius:17px;
+  background:#fff;
+}
+.completion-stats svg{color:var(--blue)}
+.completion-stats b{display:block;margin-top:6px;font-size:14px}
+.completion-stats span{display:block;margin-top:2px;color:#8a96a7;font-size:7px}
+.completion-next{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  text-align:left;
+  gap:12px;
+  padding:14px 15px;
+  margin-bottom:13px;
+  border-radius:18px;
+  background:#edf4ff;
+  color:#17243a;
+}
+.completion-next h3{margin:4px 0 3px;font-size:14px}
+.completion-next span{font-size:8px;color:#708096}
+.completion-next svg{color:var(--blue)}
+.completion-actions{display:grid;gap:8px}
+.completion-actions .primary-button,.completion-actions .secondary-button{width:100%}
+.secondary-button{
+  min-height:46px;
+  border:1px solid #d9e4f4;
+  border-radius:15px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  background:#fff;
+  color:#24558f;
+  font-weight:800;
+}
+
+@media(max-width:360px){
+  .coach-presence{grid-template-columns:76px 1fr}
+  .coach-presence-art{width:76px;height:104px}
+  .selected-workout-card{grid-template-columns:1fr 90px;padding:15px}
+  .selected-workout-art{width:120px}
+  .nutrition-coach-card.hydration-coach,.nutrition-coach-card.food-coach{grid-template-columns:1fr}
+  .nutrition-coach-card img{margin:auto}
+}
