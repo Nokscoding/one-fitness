@@ -527,6 +527,38 @@ function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
     setRunning(true)
   }
 
+  const skipCurrentSet=(alreadyDone=false)=>{
+    const entry={
+      exercise,
+      set_number:setNo,
+      reps:alreadyDone?(item.reps||null):null,
+      seconds:alreadyDone?(item.seconds||null):null,
+      skipped:!alreadyDone,
+      recovered:alreadyDone,
+    }
+    const next=[...done,entry]
+    setDone(next)
+    const lastSet=setNo>=totalSets
+    const lastExercise=exerciseIndex>=workout.exercises.length-1
+    if(lastSet&&lastExercise){
+      onComplete(next,elapsed,week,day)
+      return
+    }
+    setPending(null)
+    timerEndRef.current=null
+    if(lastSet){
+      const nextIndex=exerciseIndex+1
+      autoStartRef.current=Boolean(workout.exercises[nextIndex]?.seconds)
+      setExerciseIndex(nextIndex)
+      setSetNo(1)
+    }else{
+      autoStartRef.current=Boolean(item?.seconds)
+      setSetNo(n=>n+1)
+    }
+    setPhase('work')
+    setRunning(false)
+  }
+
   const skipRest=()=>{
     setSecondsLeft(0)
     setRunning(true)
@@ -587,6 +619,10 @@ function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
             <button className="timer-done" onClick={completeSet} disabled={secondsLeft>0}><Check size={20}/> Série finie</button>
           </div>
         </div> : <button className="session-complete" onClick={completeSet}><Check size={22}/> Série terminée</button>}
+        <div className="series-recovery-actions">
+          <button onClick={()=>skipCurrentSet(true)}><Check size={16}/> Déjà faite</button>
+          <button className="skip-series" onClick={()=>skipCurrentSet(false)}>Sauter la série <ChevronRight size={16}/></button>
+        </div>
       </> : <div className="rest-panel">
         <span>REPOS</span>
         <strong>{formatSeconds(secondsLeft)}</strong>
