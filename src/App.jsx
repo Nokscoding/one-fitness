@@ -664,6 +664,13 @@ export default function App() {
     ])
     setProfile(p.data||null)
     setExercises(e.data||[])
+    try{
+      const saved=JSON.parse(localStorage.getItem(WORKOUT_DRAFT_KEY)||'null')
+      if(saved?.week && Number.isInteger(saved?.day)){
+        const savedWorkout=getWeekPlan(saved.week)?.[saved.day]
+        if(savedWorkout) setActiveWorkout({workout:savedWorkout,week:saved.week,day:saved.day})
+      }
+    }catch{}
     setWaterMl((w.data||[]).reduce((a,x)=>a+x.amount_ml,0))
     setMeals(m.data||[])
     setMeasurementHistory([...(meas.data||[])].reverse())
