@@ -458,7 +458,7 @@ function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
       startedAt.current=Date.now()
       setElapsed(0)
       setPhase('work')
-      setRunning(Boolean(item?.seconds))
+      setRunning(false)
       return
     }
 
@@ -476,7 +476,7 @@ function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
       if(pending==='exercise'){setExerciseIndex(i=>i+1);setSetNo(1)}
       setPending(null)
       setPhase('work')
-      setRunning(Boolean(workout.exercises[pending==='exercise'?exerciseIndex+1:exerciseIndex]?.seconds))
+      setRunning(false)
     }
   },[secondsLeft,running,phase,pending,isTimed,item?.seconds,exerciseIndex,workout.exercises])
 
@@ -592,6 +592,30 @@ export default function App() {
   const [sleepLog,setSleepLog]=useState(null)
   const [pushState,setPushState]=useState('default')
   const [activeWorkout,setActiveWorkout]=useState(null)
+
+  const appWakeLockRef=useRef(null)
+
+  useEffect(()=>{
+    let cancelled=false
+    const keepAwake=async()=>{
+      if(cancelled || document.visibilityState!=='visible' || !('wakeLock' in navigator)) return
+      try{
+        if(appWakeLockRef.current && !appWakeLockRef.current.released) return
+        appWakeLockRef.current=await navigator.wakeLock.request('screen')
+      }catch{}
+    }
+    keepAwake()
+    const resume=()=>{if(document.visibilityState==='visible')keepAwake()}
+    document.addEventListener('visibilitychange',resume)
+    const firstInteraction=()=>{primeAudio();keepAwake()}
+    window.addEventListener('pointerdown',firstInteraction,{once:true})
+    return()=>{
+      cancelled=true
+      document.removeEventListener('visibilitychange',resume)
+      window.removeEventListener('pointerdown',firstInteraction)
+      try{appWakeLockRef.current?.release()}catch{}
+    }
+  },[])
 
   const changeTab=key=>{
     setTab(key)
