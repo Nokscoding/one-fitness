@@ -1243,3 +1243,23 @@ input,select,textarea{
     right:8px !important;
   }
 }
+
+
+/* Dates in mobile planner */
+.day-toggle button{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:2px;
+  line-height:1.1;
+}
+.day-toggle button small{
+  display:block;
+  font-size:8px;
+  color:#8c98a8;
+  font-weight:700;
+}
+.day-toggle button.active small{
+  color:#5f8fda;
+}
