@@ -454,6 +454,8 @@ function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
   const [done,setDone]=useState(restored?.done||[])
   const [elapsed,setElapsed]=useState(restored?.elapsed||0)
   const [wakeState,setWakeState]=useState('activation')
+  const [coachCue,setCoachCue]=useState(null)
+  const lastCueCountRef=useRef(-1)
   const startedAt=useRef(restored?.startedAt||Date.now())
   const wakeLockRef=useRef(null)
   const timerEndRef=useRef(Date.now()+5000)
@@ -463,6 +465,20 @@ function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
   const item=workout.exercises[exerciseIndex]
   const exercise=bySlug[item?.slug]
   const isTimed=Boolean(item?.seconds)
+
+  useEffect(()=>{
+    const count=done.filter(x=>!x.skipped).length
+    if(count<=0 || count===lastCueCountRef.current || count%3!==0)return
+    lastCueCountRef.current=count
+    const messages=[
+      'Bien. Garde la technique propre, pas besoin de te précipiter.',
+      'Encore un effort. Respire pendant le repos et repars proprement.',
+      'Tu avances bien. Chaque série propre compte.',
+    ]
+    setCoachCue(messages[Math.floor(count/3)%messages.length])
+    const t=setTimeout(()=>setCoachCue(null),4200)
+    return()=>clearTimeout(t)
+  },[done])
 
   useEffect(()=>{
     if(!item||!exercise)return
@@ -649,7 +665,7 @@ function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
       <div><span>SÉANCE</span><b>{workout.duration}</b></div>
     </header>
     <main className="prepare-main">
-      <div className="prepare-coach"><img src="/coach.svg" alt="Coach One Fitness"/></div>
+      <div className="prepare-coach"><SafeImage src={coachAssets.ready} alt="Coach One Fitness"/></div>
       <p className="eyebrow">PRÉPARE-TOI</p>
       <h1>{workout.title}</h1>
       <div className="countdown-orb" aria-live="assertive">{secondsLeft}</div>
@@ -666,12 +682,14 @@ function ActiveWorkout({ workout, week, day, exercises, onClose, onComplete }) {
     </header>
     <div className="session-progress"><i style={{width:`${sessionProgress}%`}}/></div>
 
+    {coachCue&&<div className="session-coach-cue"><SafeImage src={coachAssets.motivate} alt="Coach motivation"/><div><b>Coach</b><p>{coachCue}</p></div></div>}
     <main className="session-main">
       <div className="session-meta"><span>Exercice {exerciseIndex+1}/{workout.exercises.length}</span><span>Série {setNo}/{totalSets}</span></div>
       <div className="session-exercise-icon"><Zap size={38}/></div>
       <p className="eyebrow">{exercise.category}</p>
       <h1>{exercise.name}</h1>
       <p className="session-target">{item.eachSide?'Chaque côté · ':''}{item.reps?`${item.reps} répétitions`:`${item.seconds} secondes`}</p>
+      <ExerciseGuideImage slug={exercise.slug} name={exercise.name}/>
 
       {phase==='work' ? <>
         {isTimed ? <div className="work-timer">
